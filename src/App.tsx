@@ -9,6 +9,7 @@ import { Routes, Route, Link } from "react-router-dom";
 import { Search, Menu, Code, AtSign, Mail, ArrowUpRight, User } from "lucide-react";
 import { getAllPosts } from "./lib/blog";
 import BlogPost from "./pages/BlogPost";
+import Archive from "./pages/Archive";
 
 // --- ASCII Wave Component ---
 
@@ -221,7 +222,7 @@ function Home() {
             [ 01 // SELECTED_WRITINGS ]
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-            {posts.map((post, idx) => (
+            {posts.slice(0, 6).map((post, idx) => (
               <Link
                 key={post.slug}
                 to={`/blog/${post.slug}`}
@@ -251,6 +252,14 @@ function Home() {
                 </motion.article>
               </Link>
             ))}
+          </div>
+          <div className="mt-16 text-center">
+            <Link
+              to="/archive"
+              className="inline-block bg-white text-black font-black uppercase text-xs py-4 px-8 hover:bg-neutral-200 transition-colors tracking-[0.2em]"
+            >
+              More
+            </Link>
           </div>
         </section>
 
@@ -366,6 +375,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
+      <Route path="/archive" element={<Archive />} />
     </Routes>
   );
 }

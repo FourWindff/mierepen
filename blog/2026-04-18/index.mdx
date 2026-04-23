@@ -1,0 +1,48 @@
+---
+title: "Subsurface Scattering in ASCII Environments"
+date: "2026-04-18"
+author: "Light Weaver"
+readTime: "6 min"
+category: "Art"
+excerpt: "Simulating light penetration and diffusion using nothing but characters and density. A technical exploration of material simulation in text-based graphics."
+---
+
+# Subsurface Scattering in ASCII Environments
+
+Subsurface scattering is the phenomenon where light penetrates a surface, bounces around internally, and exits at a different point. It is what makes skin look alive, wax look translucent, and marble look luminous. Replicating this effect with ASCII characters is an exercise in creative density mapping.
+
+## The Physics of Light
+
+In 3D rendering, subsurface scattering requires complex light transport simulation. In ASCII art, we approximate the same visual cues through character density:
+
+- **High density** (`#`, `@`, `%`) represents light absorption
+- **Medium density** (`=`, `+`, `*`) represents partial transmission
+- **Low density** (`.`, `:`, ` `) represents full transmission or void
+
+The gradient between these densities creates the illusion of light bleeding through a surface.
+
+## Density as Material Property
+
+Different materials scatter light differently. We can simulate this by adjusting the density thresholds:
+
+| Material | Threshold | Character Range |
+|---|---|---|
+| Wax | Low | Mostly `.` and `:` |
+| Skin | Medium | Balanced across all chars |
+| Stone | High | Heavy on `#` and `%` |
+
+By controlling how characters transition from one density to another, we create the impression of depth and translucency.
+
+## Practical Application
+
+In terminal-based art, subsurface scattering can be simulated by layering multiple ASCII planes:
+
+1. **Surface layer** — highest density, defines the outer shape
+2. **Scatter layer** — medium density, offset slightly
+3. **Glow layer** — lowest density, represents transmitted light
+
+When these layers overlap with slight positional offsets, the eye interprets the result as light passing through a semi-transparent medium.
+
+## The Illusion of Depth
+
+ASCII art has no true depth, no pixels with alpha channels, no ray tracing. Yet through careful density manipulation, we can trigger the same perceptual mechanisms that make 3D rendered subsurface scattering convincing. The brain sees the pattern, not the medium.
