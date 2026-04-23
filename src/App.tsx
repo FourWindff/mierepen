@@ -5,7 +5,10 @@
 
 import { motion } from "motion/react";
 import { useState, useEffect, useRef } from "react";
+import { Routes, Route, Link } from "react-router-dom";
 import { Search, Menu, Code, AtSign, Mail, ArrowUpRight, User } from "lucide-react";
+import { getAllPosts } from "./lib/blog";
+import BlogPost from "./pages/BlogPost";
 
 // --- ASCII Wave Component ---
 
@@ -53,7 +56,6 @@ const ASCIIWave = () => {
         const time = frame * speed;
         const xFreq = 0.08;
 
-        // Add random-like harmonics to make the height unpredictable
         const h1 = Math.sin(c * 0.15 + time * 0.7) * (amplitude * 0.4);
         const h2 = Math.cos(c * 0.04 - time * 0.3) * (amplitude * 0.3);
         const h3 = Math.sin(c * 0.25 + time * 1.2) * (amplitude * 0.15);
@@ -85,11 +87,8 @@ const ASCIIWave = () => {
     for (let r = 0; r < rows; r++) {
       let line = "";
       for (let c = 0; c < cols; c++) {
-        // Higher density at the bottom
         const sandDensity = (r / rows) * 1.2;
         const noise = Math.abs(Math.sin(c * 133.7 + r * 42.1));
-
-        // Beach line with a slight curve
         const beachLine = rows * 0.5 + Math.sin(c * 0.03) * 5;
 
         if (r > beachLine) {
@@ -111,73 +110,23 @@ const ASCIIWave = () => {
       className="absolute inset-0 bg-gradient-to-b from-[#111] to-[#080808] font-mono text-[8px] sm:text-[10px] leading-tight overflow-hidden select-none"
       aria-hidden="true"
     >
-      {/* Beach Layer - Static texture */}
       <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-white/40 opacity-80">
         {generateBeach()}
       </pre>
-
-      {/* Background Layer - Slow, faint */}
       <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-white/30 opacity-50">
         {generateASCII(0.08, 12, 4, 0.02)}
       </pre>
-
-      {/* Middle Layer - Normal speed */}
       <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-white/50 opacity-70">
         {generateASCII(0.12, 6, 3, 0.04)}
       </pre>
-
-      {/* Foreground Layer - Fastest, most visible */}
       <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-white/80 opacity-100">
         {generateASCII(0.18, 2, 2, 0.06)}
       </pre>
-
-      {/* Multi-layered gradient for smoother blending */}
       <div className="absolute inset-0 bg-gradient-to-r from-[#080808]/30 via-transparent to-[#080808]/30" />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#080808]/70" />
     </div>
   );
 };
-
-// --- Blog Posts Data ---
-
-const POSTS = [
-  {
-    id: 1,
-    title: "The Architecture of Digital Fluids",
-    date: "March 2024",
-    author: "Wave Rider",
-    readTime: "5 min",
-    category: "Design",
-    excerpt: "Exploring how ASCII patterns can simulate organic movement in low-fidelity environments. A study on kinetic typography and structure.",
-  },
-  {
-    id: 2,
-    title: "Monospace as a Design Philosophy",
-    date: "Feb 2024",
-    author: "Ocean Dev",
-    readTime: "8 min",
-    category: "Philosophy",
-    excerpt: "Why the grid-based nature of monospace fonts provides the ultimate foundation for modern minimalist web layouts.",
-  },
-  {
-    id: 3,
-    title: "Minimalism in High Definition",
-    date: "Jan 2024",
-    author: "Eco Coder",
-    readTime: "4 min",
-    category: "Layout",
-    excerpt: "Stripping back the UI until only the intent remains. How the lack of color creates a deeper focus on content hierarchy.",
-  },
-  {
-    id: 4,
-    title: "The Return of ASCII Art",
-    date: "Dec 2023",
-    author: "Art Deco",
-    readTime: "6 min",
-    category: "Art",
-    excerpt: "Why retro aesthetics are making a comeback in the age of generative AI and 4K displays.",
-  },
-];
 
 // --- Navigation Item ---
 
@@ -190,32 +139,34 @@ const NavItem = ({ label, href }: { label: string; href: string }) => (
   </a>
 );
 
-// --- Main App Component ---
+// --- Home Page Component ---
 
-export default function App() {
+function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const posts = getAllPosts();
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  };
 
   return (
     <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-white selection:text-black">
-      {/* Top Background Section (Implicit Wave Zone) */}
       <div className="relative border-b border-white/10">
         <ASCIIWave />
 
-        {/* Navigation - Overlay */}
         <nav className="relative z-10 border-b border-white/5">
           <div className="max-w-7xl mx-auto flex items-center justify-between px-12 py-6">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-black uppercase tracking-tighter mix-blend-difference">Cyber.Tides</h1>
             </div>
 
-            {/* Desktop Nav */}
             <div className="hidden md:flex items-center gap-12">
               <NavItem label="Archive" href="#" />
               <NavItem label="About" href="#" />
               <NavItem label="Connect" href="#" />
             </div>
 
-            {/* Mobile Menu Toggle */}
             <button
               className="md:hidden p-4 text-white mix-blend-difference"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -225,7 +176,6 @@ export default function App() {
           </div>
         </nav>
 
-        {/* Hero Header - Overlay */}
         <header className="relative z-10 max-w-7xl mx-auto px-12 py-32 lg:py-48">
           <div className="flex justify-between items-end">
             <motion.h2
@@ -240,7 +190,6 @@ export default function App() {
       </div>
 
       <main>
-        {/* About Section */}
         <section className="max-w-7xl mx-auto px-12 py-24 border-x border-white/5 bg-white/[0.02]">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
             <div className="lg:col-span-4">
@@ -267,41 +216,44 @@ export default function App() {
           </div>
         </section>
 
-        {/* Section: Blog Posts (Thinking/Writing) */}
         <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-white/10">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/40 mb-16 font-bold text-center">
             [ 01 // SELECTED_WRITINGS ]
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-            {POSTS.map((post, idx) => (
-              <motion.article
-                key={post.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="pt-8 border-t border-white/20 hover:border-white transition-colors cursor-pointer group"
+            {posts.map((post, idx) => (
+              <Link
+                key={post.slug}
+                to={`/blog/${post.slug}`}
+                className="block"
               >
-                <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 mb-6 font-bold">
-                  {idx + 1 < 10 ? `0${idx + 1}` : idx + 1} / {post.date.toUpperCase()}
-                </div>
-                <h2 className="text-2xl font-bold leading-tight mb-4 group-hover:text-neutral-300 transition-colors">
-                  {post.title}
-                </h2>
-                <p className="text-neutral-500 text-sm leading-relaxed mb-6 line-clamp-3">
-                  {post.excerpt}
-                </p>
-                <div className="flex items-center gap-4 text-[10px] font-mono text-white/30 uppercase tracking-widest font-bold">
-                  <span>{post.category}</span>
-                  <span>/</span>
-                  <span>{post.readTime}</span>
-                </div>
-              </motion.article>
+                <motion.article
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="pt-8 border-t border-white/20 hover:border-white transition-colors cursor-pointer group"
+                >
+                  <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 mb-6 font-bold">
+                    {idx + 1 < 10 ? `0${idx + 1}` : idx + 1} / {formatDate(post.date).toUpperCase()}
+                  </div>
+                  <h2 className="text-2xl font-bold leading-tight mb-4 group-hover:text-neutral-300 transition-colors">
+                    {post.title}
+                  </h2>
+                  <p className="text-neutral-500 text-sm leading-relaxed mb-6 line-clamp-3">
+                    {post.excerpt}
+                  </p>
+                  <div className="flex items-center gap-4 text-[10px] font-mono text-white/30 uppercase tracking-widest font-bold">
+                    <span>{post.category}</span>
+                    <span>/</span>
+                    <span>{post.readTime}</span>
+                  </div>
+                </motion.article>
+              </Link>
             ))}
           </div>
         </section>
 
-        {/* Section: Projects */}
         <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-white/10 bg-white/[0.01]">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/40 mb-16 font-bold text-center">
             [ 02 // RECENT_LAB_PROJECTS ]
@@ -325,7 +277,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Section: Archive/Blog (Quick Links) */}
         <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-white/10">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/40 mb-16 font-bold text-center">
             [ 03 // ARCHIVE_REGISTRY ]
@@ -349,7 +300,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Sidebar Components Integrated into a "Utility Section" */}
         <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-white/10 grid grid-cols-1 lg:grid-cols-2 gap-12">
           <aside className="space-y-12">
             <section>
@@ -388,7 +338,6 @@ export default function App() {
         </section>
       </main>
 
-      {/* Footer */}
       <footer className="px-12 py-10 border-t border-white/10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
@@ -407,5 +356,16 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// --- Main App Component ---
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/blog/:slug" element={<BlogPost />} />
+    </Routes>
   );
 }
