@@ -14,3 +14,25 @@ declare module 'virtual:blog-index' {
   export const posts: BlogMeta[]
   export const postMap: Record<string, BlogMeta>
 }
+
+declare module 'virtual:docs-index' {
+  export interface TutorialChapterMeta {
+    slug: string
+    title: string
+    sidebarPosition: number
+    excerpt: string
+    importPath: string
+  }
+
+  export interface TutorialMeta {
+    slug: string
+    title: string
+    summary: string
+    date: string
+    label: string
+    chapters: TutorialChapterMeta[]
+  }
+
+  export const tutorials: TutorialMeta[]
+  export const tutorialMap: Record<string, TutorialMeta>
+}

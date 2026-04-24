@@ -8,9 +8,12 @@ import { useState, useEffect, useRef } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import { Search, Menu, Code, AtSign, Mail, ArrowUpRight, User, Sun, Moon } from "lucide-react";
 import { getAllPosts } from "./lib/blog";
-import { useTheme } from "./lib/theme";
+import { getAllTutorials } from "./lib/docs";
+import { formatArchiveDate } from "./lib/content";
+import { useTheme } from "./lib/useTheme";
 import BlogPost from "./pages/BlogPost";
 import Archive from "./pages/Archive";
+import DocsTutorial from "./pages/DocsTutorial";
 
 // --- ASCII Wave Component ---
 
@@ -132,13 +135,13 @@ const ASCIIWave = () => {
 
 // --- Navigation Item ---
 
-const NavItem = ({ label, href }: { label: string; href: string }) => (
-  <a
-    href={href}
+const NavItem = ({ label, to }: { label: string; to: string }) => (
+  <Link
+    to={to}
     className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
   >
     {label}
-  </a>
+  </Link>
 );
 
 // --- Home Page Component ---
@@ -147,11 +150,9 @@ function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const posts = getAllPosts();
-
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-  };
+  const tutorials = getAllTutorials();
+  const latestTutorials = tutorials.slice(0, 4);
+  const hasMoreTutorials = tutorials.length > latestTutorials.length;
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-bg-primary-dark text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
@@ -165,9 +166,9 @@ function Home() {
             </div>
 
             <div className="hidden md:flex items-center gap-12">
-              <NavItem label="Archive" href="#" />
-              <NavItem label="About" href="#" />
-              <NavItem label="Connect" href="#" />
+              <NavItem label="Archive" to="/archive" />
+              <NavItem label="About" to="/" />
+              <NavItem label="Connect" to="/" />
               <button
                 onClick={toggleTheme}
                 className="p-2 text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
@@ -245,7 +246,7 @@ function Home() {
                   className="pt-8 border-t border-black/20 dark:border-white/20 hover:border-black dark:hover:border-white transition-colors cursor-pointer group"
                 >
                   <div className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50 mb-6 font-bold">
-                    {idx + 1 < 10 ? `0${idx + 1}` : idx + 1} / {formatDate(post.date).toUpperCase()}
+                    {idx + 1 < 10 ? `0${idx + 1}` : idx + 1} / {formatArchiveDate(post.date).toUpperCase()}
                   </div>
                   <h2 className="text-2xl font-bold leading-tight mb-4 group-hover:text-neutral-700 dark:group-hover:text-neutral-300 transition-colors">
                     {post.title}
@@ -274,25 +275,39 @@ function Home() {
 
         <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-black/10 dark:border-white/10 bg-black/1 dark:bg-white/1">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-black/40 dark:text-white/40 mb-16 font-bold text-center">
-            [ 02 // RECENT_LAB_PROJECTS ]
+            [ 02 // DOCS_LIBRARY ]
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-1 px-1 bg-black/10 dark:bg-white/10 border border-black/10 dark:border-white/10">
-            {[
-              { name: "Nebula OS", type: "Experimental UI", desc: "A browser-based operating system designed for focus." },
-              { name: "Flux Engine", type: "Canvas Engine", desc: "Real-time fluid simulation using character grids." },
-              { name: "Mono-Type", type: "Typography", desc: "A custom variable font for terminal enthusiasts." },
-              { name: "Void-Space", type: "Social Hub", desc: "A minimal, encrypted community platform." }
-            ].map((proj, idx) => (
-              <div key={idx} className="bg-[#f5f5f5] dark:bg-bg-primary-dark p-12 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group relative">
+            {latestTutorials.map((tutorial) => (
+              <Link
+                key={tutorial.slug}
+                to={`/docs/${tutorial.slug}`}
+                className="bg-[#f5f5f5] dark:bg-bg-primary-dark p-12 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group relative block"
+              >
                 <div className="flex justify-between items-start mb-12">
-                  <span className="font-mono text-[10px] text-black/30 dark:text-white/30">{proj.type.toUpperCase()}</span>
+                  <span className="font-mono text-[10px] text-black/30 dark:text-white/30">
+                    {tutorial.label.toUpperCase()} / {formatArchiveDate(tutorial.date).toUpperCase()}
+                  </span>
                   <ArrowUpRight size={20} className="text-black/20 dark:text-white/20 group-hover:text-black dark:group-hover:text-white transition-colors group-hover:translate-x-1 group-hover:-translate-y-1" />
                 </div>
-                <h4 className="text-4xl font-black uppercase mb-4">{proj.name}</h4>
-                <p className="text-neutral-500 font-mono text-xs max-w-sm">{proj.desc}</p>
-              </div>
+                <h4 className="text-4xl font-black uppercase mb-4">{tutorial.title}</h4>
+                <p className="text-neutral-500 font-mono text-xs max-w-sm mb-8">{tutorial.summary}</p>
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/30 dark:text-white/30">
+                  {tutorial.chapters.length} chapters
+                </div>
+              </Link>
             ))}
           </div>
+          {hasMoreTutorials ? (
+            <div className="mt-16 text-center">
+              <Link
+                to="/archive"
+                className="inline-block bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs py-4 px-8 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors tracking-[0.2em]"
+              >
+                More
+              </Link>
+            </div>
+          ) : null}
         </section>
 
         <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-black/10 dark:border-white/10">
@@ -300,20 +315,14 @@ function Home() {
             [ 03 // ARCHIVE_REGISTRY ]
           </h3>
           <div className="space-y-4">
-            {[
-              "The Ethics of Generative Entropy",
-              "Subsurface Scattering in ASCII Environments",
-              "Mental Models for Grid-Based Layouts",
-              "Legacy Systems: Why We Can't Let Go",
-              "The Sound of Code: Auditory Feedback in IDEs"
-            ].map((title, i) => (
-              <a key={i} href="#" className="flex items-center justify-between p-6 border border-black/5 dark:border-white/5 hover:border-black/40 dark:hover:border-white/40 transition-colors group">
+            {posts.slice(0, 5).map((post, i) => (
+              <Link key={post.slug} to={`/blog/${post.slug}`} className="flex items-center justify-between p-6 border border-black/5 dark:border-white/5 hover:border-black/40 dark:hover:border-white/40 transition-colors group">
                 <div className="flex items-center gap-8">
                   <span className="font-mono text-[10px] text-black/20 dark:text-white/20">#{122 - i}</span>
-                  <span className="text-lg font-bold group-hover:translate-x-2 transition-transform">{title}</span>
+                  <span className="text-lg font-bold group-hover:translate-x-2 transition-transform">{post.title}</span>
                 </div>
-                <span className="font-mono text-[10px] text-black/20 dark:text-white/20">01.2024</span>
-              </a>
+                <span className="font-mono text-[10px] text-black/20 dark:text-white/20">{formatArchiveDate(post.date)}</span>
+              </Link>
             ))}
           </div>
         </section>
@@ -384,6 +393,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
+      <Route path="/docs/:tutorialSlug" element={<DocsTutorial />} />
+      <Route path="/docs/:tutorialSlug/:chapterSlug" element={<DocsTutorial />} />
       <Route path="/archive" element={<Archive />} />
     </Routes>
   );

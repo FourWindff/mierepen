@@ -3,24 +3,31 @@ import { useParams, Link } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { getPostBySlug, type BlogPost as BlogPostType } from '../lib/blog'
-import { useTheme } from '../lib/theme'
+import { useTheme } from '../lib/useTheme'
 import { mdxComponents } from '../components/mdx'
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>()
   const [post, setPost] = useState<BlogPostType | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loadedSlug, setLoadedSlug] = useState<string | null>(null)
   const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     if (!slug) return
-    setLoading(true)
-    getPostBySlug(slug)
-      .then(setPost)
-      .finally(() => setLoading(false))
+    let cancelled = false
+
+    void getPostBySlug(slug).then((nextPost) => {
+      if (cancelled) return
+      setPost(nextPost)
+      setLoadedSlug(slug)
+    })
+
+    return () => {
+      cancelled = true
+    }
   }, [slug])
 
-  if (loading) {
+  if (slug && loadedSlug !== slug) {
     return (
       <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Loading Data...
@@ -51,7 +58,7 @@ export default function BlogPost() {
           </Link>
           <div className="flex items-center gap-8">
             <Link
-              to="/"
+              to="/archive"
               className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
             >
               <ArrowLeft size={16} />

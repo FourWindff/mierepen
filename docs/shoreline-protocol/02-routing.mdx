@@ -1,0 +1,15 @@
+---
+title: "Route Around Drift"
+sidebar_position: 2
+excerpt: "Introduce routing rules that preserve continuity when a node goes dark."
+---
+
+# Route Around Drift
+
+Once the baseline exists, add routing layers that can absorb outages without breaking the editorial surface.
+
+```ts
+type RouteMode = 'primary' | 'fallback'
+```
+
+Keep the route table human-readable. Operators should be able to audit the topology without opening code.

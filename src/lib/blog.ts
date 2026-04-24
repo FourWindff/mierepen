@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from 'react'
+import type { MDXComponents } from 'mdx/types'
 import { posts, postMap } from 'virtual:blog-index'
 
 export interface BlogMeta {
@@ -12,7 +13,7 @@ export interface BlogMeta {
 }
 
 export interface MDXComponentProps {
-  components?: Record<string, ComponentType<any>>
+  components?: MDXComponents
   children?: ReactNode
 }
 

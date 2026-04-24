@@ -1,0 +1,13 @@
+---
+title: "Deploy The Sensor Net"
+sidebar_position: 3
+excerpt: "Turn raw tide stations into a repeatable, low-noise capture grid."
+---
+
+# Deploy The Sensor Net
+
+The shoreline stack starts at the edge. Every station should publish a stable shape before it publishes volume.
+
+- Normalize units at the source.
+- Reject packets that drift outside the expected clock window.
+- Keep one fallback channel alive for degraded weather conditions.
