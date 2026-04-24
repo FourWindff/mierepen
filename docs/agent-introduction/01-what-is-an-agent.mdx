@@ -1,0 +1,102 @@
+---
+title: "What Is an Agent?"
+sidebar_position: 1
+excerpt: "Define what makes an AI agent different from a simple model, and explore the core loop of perception, reasoning, and action."
+---
+
+# What Is an Agent?
+
+The word "agent" gets used a lot in modern AI discussions, but its meaning is often stretched thin. In this chapter, we will build a precise, practical definition and show why the distinction between a "model" and an "agent" matters when you are designing real systems.
+
+## Beyond the Prompt
+
+A language model, by itself, is a pattern-completion engine. You give it text; it predicts what comes next. That prediction can be astonishingly useful, but it is fundamentally passive. The model does not decide when to run, it does not choose what information to gather, and it cannot verify whether its output actually solved your problem.
+
+An agent changes that equation.
+
+> An agent is a system that uses a language model as a reasoning core, then wraps it in a loop of perception, decision, and action so it can pursue a goal autonomously.
+
+This loop is the key difference. Instead of a single request and response, an agent runs continuously (or at least iteratively) until a termination condition is met. It observes the world, thinks about what to do next, acts, and then observes again.
+
+## The Perception-Reasoning-Action Loop
+
+At the heart of every agent is a simple cycle:
+
+1. **Perceive** — ingest observations from the environment, user messages, tool results, or memory.
+2. **Reason** — use the language model to decide what to do next, which tool to call, or what question to ask.
+3. **Act** — execute the chosen action, whether that is calling an API, writing a file, or sending a message.
+4. **Observe** — capture the result of the action and feed it back into perception.
+
+This loop is sometimes called the **ReAct** pattern (Reasoning + Acting), and it is the architectural backbone of most modern agent frameworks.
+
+```ts
+type AgentStep = {
+  observation: string
+  thought: string
+  action: Action
+  result: string
+}
+```
+
+The loop continues until the agent decides it has achieved its goal, hit a hard limit on steps, or encountered an unrecoverable error.
+
+## What Counts as an Agent?
+
+Not every system that calls a model twice is an agent. A true agent usually has at least three of the following properties:
+
+| Property | Description |
+|----------|-------------|
+| Autonomy | Can initiate actions without human approval for every step. |
+| Tool use | Can invoke external functions, APIs, or code interpreters. |
+| Memory | Retains context across multiple turns or sessions. |
+| Goal-directedness | Works toward a specific objective rather than just answering questions. |
+| Planning | Can break a large task into sub-tasks and sequence them. |
+
+A chatbot that only answers questions is not an agent. A system that takes a research question, searches the web, summarizes five papers, and writes a draft report is an agent.
+
+<Callout type="info" title="A spectrum, not a binary">
+  Agent-ness is a spectrum. A system can be more or less agentic depending on how many of the above properties it exhibits and how independently it exercises them.
+</Callout>
+
+## Common Misconceptions
+
+Because the term is trendy, it is worth clearing up a few common misconceptions.
+
+### "Agents are just chains of prompts"
+
+Prompt chaining is a technique, not an architecture. An agent might use prompt chaining internally, but the defining feature is the closed loop of action and observation. A static chain that runs once and stops is not an agent.
+
+### "Agents replace developers"
+
+Agents augment developers. They excel at exploration, boilerplate generation, and information synthesis. They still require human oversight for architecture decisions, value judgments, and safety constraints.
+
+### "Bigger models make better agents"
+
+Model scale helps, but agent performance is often dominated by three other factors:
+
+- The quality of the tools you give it.
+- The structure of its memory system.
+- The clarity of the termination and retry logic.
+
+A smaller model with excellent tools and a well-designed loop can outperform a larger model with poor scaffolding.
+
+## When to Use an Agent
+
+Agents shine in tasks that are:
+
+- **Open-ended** — the exact sequence of steps is not known in advance.
+- **Information-rich** — the agent needs to gather data from multiple sources.
+- **Iterative** — the solution improves through trial and feedback.
+- **Tool-bound** — the task requires interacting with external systems.
+
+If your task is deterministic, fully specified, and requires no external data, a traditional script or workflow engine is usually a better choice.
+
+<Callout type="warning" title="Cost and latency trade-offs">
+  Every loop iteration costs tokens and time. An agent that spins for twenty steps to solve a problem a regex could handle in milliseconds is not a good use of the architecture. Match the tool to the task.
+</Callout>
+
+## Summary
+
+- An agent wraps a language model in a loop of perception, reasoning, and action.
+- It is defined by autonomy, tool use, memory, goal-directedness, and planning.
+- Agents are not a replacement for traditional software; they are a new layer for open-ended, information-rich tasks.

@@ -1,0 +1,216 @@
+---
+title: "Tools and Actions"
+sidebar_position: 3
+excerpt: "Learn how to design, register, and secure the tools that give an agent its real-world capabilities."
+---
+
+# Tools and Actions
+
+An agent without tools is like a scientist without a laboratory: full of ideas but unable to test them. Tools are the bridge between abstract reasoning and concrete outcomes. In this chapter, we will cover how to design effective tools, how to help the agent choose the right one, and how to keep the whole system secure.
+
+## What Is a Tool?
+
+In agent architecture, a tool is any callable capability that the reasoning core can invoke to affect the outside world or retrieve information from it. Tools can be:
+
+- **Read-only** — search engines, database queries, file readers.
+- **Write-capable** — file writers, API POST requests, database mutations.
+- **Computational** — code interpreters, calculators, simulators.
+- **Interactive** — sending messages, requesting human input, triggering alerts.
+
+The defining characteristic is that the agent decides when to use the tool and what arguments to pass. That decision is made by the reasoning core based on the tool's description and the current task.
+
+## Designing Good Tools
+
+Tool design is one of the highest-leverage activities in agent engineering. A well-designed tool makes the agent look intelligent. A poorly designed tool makes even the best model look incompetent.
+
+### Clarity Over Cleverness
+
+The most important part of a tool is its description. The reasoning core does not see the implementation; it only sees the name, description, and parameter schema. If the description is ambiguous, the model will misuse the tool.
+
+Bad description:
+
+```
+get_data: "Fetches stuff from the system."
+```
+
+Good description:
+
+```
+get_customer_order: "Retrieves the full order history for a given customer_id. Returns an array of orders with timestamps, items, and statuses."
+```
+
+### Granularity Matters
+
+There is a tension between making tools too granular and too broad.
+
+| Granularity | Pros | Cons |
+|-------------|------|------|
+| Fine-grained | Easy to test, precise control | More tool calls, higher latency |
+| Coarse-grained | Fewer calls, faster execution | Harder to debug, less flexible |
+
+A good rule of thumb is to align tool boundaries with user intent. If a user frequently asks for "the weather in Paris," a single `get_weather(location)` tool is better than separate `get_temperature`, `get_humidity`, and `get_forecast` tools.
+
+### Idempotency and Safety
+
+Whenever possible, design tools to be idempotent. If the agent calls the same tool twice with the same arguments, the result should be the same and there should be no unintended side effects.
+
+Idempotent tools are easier to retry. When a network hiccup causes a tool call to time out, the orchestrator can safely retry without worrying about creating duplicate records.
+
+<Callout type="warning" title="Side effects are dangerous">
+  A tool that sends an email or charges a credit card cannot be idempotent in the strict sense, but you can make it safe by requiring unique transaction IDs or confirmation tokens. Never give an agent unguarded access to destructive operations.
+</Callout>
+
+## The Tool Selection Problem
+
+Even with perfect tool descriptions, the reasoning core sometimes chooses the wrong tool. This is especially common when:
+
+- Two tools have overlapping functionality.
+- The user's request is ambiguous.
+- The model is operating near the edge of its knowledge cutoff.
+
+### Improving Selection Accuracy
+
+There are several techniques to improve tool selection:
+
+#### Few-Shot Examples
+
+Include examples of correct tool usage in the system prompt. Show the model what a good decision looks like.
+
+```ts
+const examples = `
+User: "What is the stock price of Apple?"
+Thought: The user wants a current stock price. I should use the get_stock_price tool.
+Action: { "tool": "get_stock_price", "args": { "symbol": "AAPL" } }
+
+User: "Buy me ten shares of Apple."
+Thought: The user wants to execute a trade. I should use the place_order tool.
+Action: { "tool": "place_order", "args": { "symbol": "AAPL", "quantity": 10, "side": "buy" } }
+`
+```
+
+#### Hierarchical Tool Organization
+
+If you have dozens of tools, flattening them into a single list overwhelms the model. Instead, organize tools into namespaces or categories.
+
+```ts
+const toolCatalog = {
+  finance: [get_stock_price, place_order, get_portfolio],
+  travel: [search_flights, book_hotel, get_itinerary],
+  system: [read_file, write_file, run_command],
+}
+```
+
+The agent first selects a namespace, then selects a tool within that namespace. This two-step process reduces cognitive load and improves accuracy.
+
+<Callout type="info" title="Tool filtering">
+  Some frameworks dynamically filter the tool list based on the current task. If the user is asking about travel, only travel-related tools are presented to the model. This is one of the simplest ways to improve reliability.
+</Callout>
+
+## Securing Tool Execution
+
+Security is not an afterthought; it is a foundational requirement. Every tool is a potential vulnerability.
+
+### The Principle of Least Privilege
+
+A tool should have exactly the permissions it needs and no more. If a tool only needs to read from a database, it should not have write access. If a tool only needs to access public APIs, it should not have access to internal networks.
+
+### Sandboxing
+
+Run tools in isolated environments. Options include:
+
+- **Containers** (Docker, Podman) for process isolation.
+- **WebAssembly** for lightweight, language-agnostic sandboxing.
+- **Function-as-a-Service** (AWS Lambda, Cloud Functions) for automatic scaling and isolation.
+- **Restricted interpreters** for code execution tools.
+
+### Input Validation
+
+Never trust the model to produce valid or safe arguments. Validate every input against the JSON Schema before executing the tool handler.
+
+```ts
+function validateArgs(schema: JSONSchema, args: unknown) {
+  const validator = new Ajv().compile(schema)
+  if (!validator(args)) {
+    throw new Error(`Invalid arguments: ${JSON.stringify(validator.errors)}`)
+  }
+}
+```
+
+### Output Sanitization
+
+Tool outputs flow back into the model's context window. If a tool returns malicious HTML, JavaScript, or prompt-injection payloads, the next reasoning step can be compromised. Sanitize or escape tool outputs before including them in the prompt.
+
+## Handling Tool Failures
+
+Tools fail. Networks drop, APIs rate-limit, databases lock. A robust agent expects failure and plans for it.
+
+### Failure Taxonomy
+
+| Failure Type | Example | Response Strategy |
+|--------------|---------|-------------------|
+| Transient | Network timeout | Retry with exponential backoff |
+| Permanent | Invalid API key | Escalate to human immediately |
+| Semantic | Tool returns empty result | Ask clarifying question or try alternative tool |
+| Timeout | Tool exceeds max duration | Abort and return partial result |
+
+### Retry Logic
+
+The orchestrator should implement configurable retry policies per tool. A read-only search tool can be retried three times. A payment processing tool should not be retried at all without human confirmation.
+
+```ts
+const retryPolicy = {
+  maxRetries: 3,
+  backoff: 'exponential',
+  retryableErrors: ['ETIMEDOUT', 'ECONNRESET', '429'],
+}
+```
+
+<Callout type="error" title="Retry loops can spiral">
+  A tool that fails consistently can trap the agent in an infinite retry loop. Always cap total retries across all steps, not just per tool call. A global step budget is your safety net.
+</Callout>
+
+## Building a Tool Registry
+
+A tool registry is the component that stores tool definitions, routes tool calls to handlers, and enforces security policies.
+
+### Minimal Registry Example
+
+```ts
+class ToolRegistry {
+  private tools = new Map<string, Tool>()
+
+  register(tool: Tool) {
+    this.tools.set(tool.name, tool)
+  }
+
+  schema(): ToolSchema[] {
+    return Array.from(this.tools.values()).map(t => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    }))
+  }
+
+  async execute(name: string, args: unknown) {
+    const tool = this.tools.get(name)
+    if (!tool) throw new Error(`Unknown tool: ${name}`)
+    validateArgs(tool.parameters, args)
+    return tool.handler(args)
+  }
+}
+```
+
+In production, the registry also handles:
+
+- **Authentication** — injecting API keys or tokens into tool calls.
+- **Metering** — tracking usage per tool for cost analysis.
+- **Circuit breaking** — disabling tools that fail repeatedly.
+- **Auditing** — logging every tool call and its result for compliance.
+
+## Summary
+
+- Tools are the agent's interface to the real world.
+- Good tool design prioritizes clear descriptions, appropriate granularity, and idempotency.
+- Tool selection accuracy improves with few-shot examples, hierarchical organization, and dynamic filtering.
+- Security requires least-privilege permissions, sandboxing, input validation, and output sanitization.
+- Failure handling needs a taxonomy of failure types, per-tool retry policies, and global step budgets.

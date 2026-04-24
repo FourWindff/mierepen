@@ -1,0 +1,148 @@
+---
+title: "Timers and PWM"
+sidebar_position: 3
+excerpt: "Master the general-purpose timers: timebase configuration, output compare, and pulse-width modulation for motor control and signaling."
+---
+
+# Timers and PWM
+
+Timers are the most flexible peripherals on an STM32. They can count milliseconds, generate precise delays, create PWM waveforms for motors and LEDs, and even decode rotary encoders. Understanding the timer architecture unlocks a huge slice of what the microcontroller can do without CPU intervention.
+
+## Timer Categories
+
+STM32 timers are grouped by capability:
+
+| Type | Examples | Key Features |
+|------|----------|--------------|
+| Basic | TIM6, TIM7 | Simple timebase, DAC trigger |
+| General Purpose | TIM2, TIM3, TIM4, TIM5 | PWM, input capture, encoder interface |
+| Advanced | TIM1, TIM8 | Complementary PWM, dead-time insertion, brake input |
+| Low-Power | LPTIM1 | Runs from LSE, continues in Stop mode |
+
+For most projects, general-purpose timers are sufficient. Advanced timers are essential for motor control and power converters where you need synchronized, complementary outputs with dead-time.
+
+## Timebase Configuration
+
+Every timer derives its clock from a bus, usually APB1 or APB2. On many STM32 parts, if the APB prescaler is not 1, the timer clock is doubled relative to the bus clock. Check the clock tree in the reference manual; assuming the wrong timer clock is a common source of timing errors.
+
+The timebase is defined by two values:
+
+- **Prescaler (PSC)**: divides the timer clock before it reaches the counter.
+- **Auto-Reload Register (ARR)**: the counter resets to zero when it reaches this value.
+
+The update event frequency is:
+
+```
+f_update = f_timer_clock / ((PSC + 1) * (ARR + 1))
+```
+
+For example, with a 168 MHz timer clock, a prescaler of `16799`, and an ARR of `9999`:
+
+```
+f_update = 168000000 / (16800 * 10000) = 1 Hz
+```
+
+<Callout type="info" title="Off-by-one registers">
+  Both PSC and ARR are zero-based in hardware. A prescaler value of `0` means divide by 1. Always add one in your head when calculating frequencies.
+</Callout>
+
+## PWM Generation
+
+PWM is created using the Output Compare (OC) channels. Each timer can have up to four channels, and each channel can drive a GPIO pin when configured in alternate function mode.
+
+The duty cycle is controlled by the Capture/Compare Register (CCR). When the counter is below CCR, the output is high; when it is above, the output is low. The ratio of CCR to ARR determines the duty cycle.
+
+### PWM Mode 1 vs Mode 2
+
+- **Mode 1**: output is active while counter < CCR.
+- **Mode 2**: output is active while counter >= CCR.
+
+Mode 1 is the most common choice. If you need inverted logic, switch to Mode 2 instead of adding software negation.
+
+### HAL PWM Example
+
+This example configures TIM2 Channel 1 on `PA0` for a 1 kHz PWM signal with 25 percent duty cycle on an STM32F4 running at 168 MHz.
+
+```c
+#include "stm32f4xx_hal.h"
+
+TIM_HandleTypeDef htim2;
+
+void TIM2_PWM_Init(void)
+{
+    __HAL_RCC_TIM2_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    htim2.Instance = TIM2;
+    htim2.Init.Prescaler = 167;
+    htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim2.Init.Period = 999;
+    htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    HAL_TIM_PWM_Init(&htim2);
+
+    TIM_OC_InitTypeDef sConfigOC = {0};
+    sConfigOC.OCMode = TIM_OCMODE_PWM1;
+    sConfigOC.Pulse = 250;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1);
+
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+}
+```
+
+With a prescaler of `167`, the timer clock becomes `1 MHz`. An ARR of `999` gives a `1 kHz` period. Setting the pulse to `250` yields a 25 percent duty cycle because `250 / 1000 = 0.25`.
+
+## Input Capture
+
+Input capture is the inverse of PWM generation. Instead of the timer driving a pin, the pin drives the timer. When an edge arrives, the current counter value is copied into the CCR register and an interrupt can fire. This is perfect for measuring pulse widths, frequencies, or time-of-flight.
+
+### Measuring Pulse Width
+
+1. Configure the timer channel in input capture mode.
+2. On the rising edge, capture the counter value and switch to falling edge detection.
+3. On the falling edge, capture again and subtract the two values.
+4. Convert the difference to microseconds using the timer clock and prescaler.
+
+<Callout type="warning" title="Counter overflow">
+  If the pulse is longer than one full timer period, the counter will overflow between edges. Your ISR must detect this by checking the update interrupt flag and adding the ARR value to your calculation.
+</Callout>
+
+## Encoder Interface Mode
+
+General-purpose timers can decode quadrature encoder signals directly in hardware. Connect the A and B phases to two timer input pins, set the timer to encoder mode, and the counter will increment or decrement automatically as the shaft rotates.
+
+```c
+TIM_Encoder_InitTypeDef sEncoderConfig = {0};
+sEncoderConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+sEncoderConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+sEncoderConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+sEncoderConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+sEncoderConfig.IC1Filter = 0;
+sEncoderConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+sEncoderConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+sEncoderConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+sEncoderConfig.IC2Filter = 0;
+HAL_TIM_Encoder_Init(&htim3, &sEncoderConfig);
+HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+```
+
+After starting, `TIM3->CNT` holds the encoder count. You can read it in your main loop or set an interrupt on overflow to track multi-revolution position.
+
+## Dead Time and Advanced Timers
+
+When driving half-bridges or H-bridges, you must never turn on both the high-side and low-side switches simultaneously. Advanced timers provide a dead-time generator that inserts a programmable delay between the turning-off of one switch and the turning-on of the other.
+
+The dead-time value is typically loaded into the `BDTR` register and expressed in timer ticks. For a 1 MHz timer clock, a dead-time of `50` means `50 µs` of safe margin.
+
+<Callout type="error" title="Shoot-through">
+  Without adequate dead-time, both MOSFETs in a half-bridge can conduct simultaneously, creating a direct short from supply to ground. This is called shoot-through and can destroy power stages in microseconds.
+</Callout>

@@ -1,0 +1,226 @@
+---
+title: "UART Communication"
+sidebar_position: 4
+excerpt: "Set up asynchronous serial communication, handle interrupts and DMA, and build robust framing protocols on top of raw bytes."
+---
+
+# UART Communication
+
+Universal Asynchronous Receiver-Transmitter (UART) is the simplest way to get data into and out of an STM32. It requires only two data wires, no shared clock, and works over USB-to-serial adapters, Bluetooth modules, GPS receivers, and countless other devices. Mastering UART means understanding baud rate configuration, interrupt handling, and the trade-offs between polling, interrupt-driven, and DMA-based reception.
+
+## UART Hardware Basics
+
+A UART peripheral sends data one bit at a time, framed by a start bit, data bits, an optional parity bit, and stop bits. Both sides must agree on:
+
+- Baud rate
+- Data bits (usually 8)
+- Parity (none, even, odd)
+- Stop bits (1 or 2)
+
+The most common configuration is `8N1`: 8 data bits, no parity, 1 stop bit.
+
+STM32 UARTs are full-duplex, meaning they can transmit and receive simultaneously using separate shift registers. They also support hardware flow control (RTS/CTS) for cases where the receiver cannot keep up with the sender.
+
+## Baud Rate Calculation
+
+The baud rate is derived from the peripheral clock using a baud rate register (BRR). The exact formula depends on whether oversampling by 16 or 8 is selected.
+
+For oversampling by 16:
+
+```
+USARTDIV = f_peripheral / (16 * baud_rate)
+BRR = round(USARTDIV * 16)
+```
+
+For example, with a 42 MHz peripheral clock and a target baud rate of 115200:
+
+```
+USARTDIV = 42000000 / (16 * 115200) ≈ 22.786
+BRR = round(22.786 * 16) = 365
+Actual baud = 42000000 / (16 * 365) ≈ 115068
+Error = (115068 - 115200) / 115200 ≈ -0.11%
+```
+
+An error under 2 percent is generally acceptable. Above that, consider changing the peripheral clock or using a different baud rate.
+
+<Callout type="info" title="Common baud rates">
+  9600, 19200, 38400, 57600, and 115200 are the most common values. Modern USB-to-serial bridges handle 921600 and higher without issues, but older RS-232 transceivers may struggle above 115200.
+</Callout>
+
+## Polling-Based UART
+
+The simplest way to send and receive is polling. You wait for the transmit data register empty flag, write a byte, and repeat.
+
+```c
+#include "stm32f4xx_hal.h"
+
+UART_HandleTypeDef huart2;
+
+void UART2_Init(void)
+{
+    __HAL_RCC_USART2_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_3;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    huart2.Instance = USART2;
+    huart2.Init.BaudRate = 115200;
+    huart2.Init.WordLength = UART_WORDLENGTH_8B;
+    huart2.Init.StopBits = UART_STOPBITS_1;
+    huart2.Init.Parity = UART_PARITY_NONE;
+    huart2.Init.Mode = UART_MODE_TX_RX;
+    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+    HAL_UART_Init(&huart2);
+}
+
+void UART_SendString(const char *str)
+{
+    while (*str)
+    {
+        HAL_UART_Transmit(&huart2, (uint8_t *)str++, 1, HAL_MAX_DELAY);
+    }
+}
+```
+
+Polling is fine for initialization messages and simple debug prints. It blocks the CPU, though, so do not use it for high data rates or time-critical loops.
+
+## Interrupt-Driven Reception
+
+For real applications, interrupts are more appropriate. The UART fires an interrupt every time a byte arrives, and your ISR copies it into a circular buffer.
+
+```c
+#define RX_BUF_SIZE 256
+
+volatile uint8_t rx_buffer[RX_BUF_SIZE];
+volatile uint16_t rx_head = 0;
+volatile uint16_t rx_tail = 0;
+
+void USART2_IRQHandler(void)
+{
+    if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_RXNE))
+    {
+        uint8_t byte = (uint8_t)(huart2.Instance->DR & 0xFF);
+        uint16_t next = (rx_head + 1) % RX_BUF_SIZE;
+        if (next != rx_tail)
+        {
+            rx_buffer[rx_head] = byte;
+            rx_head = next;
+        }
+    }
+    HAL_UART_IRQHandler(&huart2);
+}
+```
+
+In your main loop, you check whether `rx_head != rx_tail` and process bytes without blocking. This decouples reception timing from application logic.
+
+<Callout type="warning" title="ISR latency">
+  If your main loop disables interrupts for long periods, or if another ISR runs slowly, you can miss UART bytes. The STM32 UART has a one-byte receive shift register and one-byte data register. If a new byte arrives before you read the previous one, an overrun error occurs and data is lost.
+</Callout>
+
+## DMA-Based UART
+
+For high throughput or when the CPU must stay asleep, DMA is the best choice. The UART peripheral triggers a DMA transfer for every received byte, and the DMA controller writes it directly to RAM without CPU involvement.
+
+### Circular DMA Reception
+
+Configure the DMA stream in circular mode with a large buffer. The DMA wraps around automatically, and you only need to check the current write position using `huart2.hdmarx->Instance->NDTR`.
+
+```c
+void UART2_DMA_Init(void)
+{
+    __HAL_RCC_DMA1_CLK_ENABLE();
+
+    HAL_UART_Receive_DMA(&huart2, rx_buffer, RX_BUF_SIZE);
+}
+```
+
+The HAL handles the DMA interrupts for you. In the `HAL_UART_RxCpltCallback` and `HAL_UART_RxHalfCpltCallback`, you can process the half of the buffer that is complete while the DMA fills the other half.
+
+| Method | CPU Load | Complexity | Best For |
+|--------|----------|------------|----------|
+| Polling | High | Low | Debug prints, init |
+| Interrupt | Medium | Medium | Moderate data rates |
+| DMA | Low | High | High throughput, low power |
+
+## Building a Framing Protocol
+
+Raw bytes are not enough for most applications. You need a framing protocol so the receiver knows where a message starts and ends, and whether the content is intact.
+
+### Simple Length-Prefixed Frame
+
+A robust beginner protocol looks like this:
+
+1. **Start byte**: fixed value like `0xAA` to mark the beginning.
+2. **Length byte**: number of payload bytes that follow.
+3. **Payload**: the actual data.
+4. **Checksum**: a single byte XOR or CRC of the payload.
+
+The receiver runs a small state machine:
+
+```c
+typedef enum {
+    STATE_WAIT_START,
+    STATE_READ_LENGTH,
+    STATE_READ_PAYLOAD,
+    STATE_READ_CHECKSUM
+} FrameState;
+
+void ProcessByte(uint8_t byte)
+{
+    static FrameState state = STATE_WAIT_START;
+    static uint8_t length = 0;
+    static uint8_t payload[64];
+    static uint8_t idx = 0;
+    static uint8_t checksum = 0;
+
+    switch (state)
+    {
+        case STATE_WAIT_START:
+            if (byte == 0xAA)
+                state = STATE_READ_LENGTH;
+            break;
+        case STATE_READ_LENGTH:
+            length = byte;
+            idx = 0;
+            checksum = 0;
+            state = STATE_READ_PAYLOAD;
+            break;
+        case STATE_READ_PAYLOAD:
+            payload[idx++] = byte;
+            checksum ^= byte;
+            if (idx >= length)
+                state = STATE_READ_CHECKSUM;
+            break;
+        case STATE_READ_CHECKSUM:
+            if (byte == checksum)
+                HandleFrame(payload, length);
+            state = STATE_WAIT_START;
+            break;
+    }
+}
+```
+
+This pattern is resilient to noise and desynchronization. If a stray byte arrives, the state machine waits for the next start byte and recovers automatically.
+
+<Callout type="error" title="No protocol on production streams">
+  Never stream raw sensor data without framing or checksums on a physical wire. Electrical noise, connector vibration, and ground shifts will corrupt bytes. A simple XOR checksum catches most single-bit errors and prevents your application from acting on garbage.
+</Callout>
+
+## Debugging UART Issues
+
+When UART does not work, check these things in order:
+
+1. **Clocks**: is the peripheral clock enabled? Is the baud rate error acceptable?
+2. **Pins**: are TX and RX crossed correctly? Is the alternate function mapped?
+3. **Ground**: do the STM32 and the external device share a common ground?
+4. **Voltage levels**: is the external device 3.3 V or 5 V tolerant? A 5 V UART into a 3.3 V pin can damage the STM32.
+5. **Overrun**: check the `ORE` flag in the status register. If it is set, your ISR or DMA is not reading fast enough.
+
+> UART debugging is 90 percent electrical and 10 percent software. A logic analyzer is worth more than printf when signals are suspect.

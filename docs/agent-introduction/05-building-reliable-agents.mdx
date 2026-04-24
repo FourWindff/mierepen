@@ -1,0 +1,276 @@
+---
+title: "Building Reliable Agents"
+sidebar_position: 5
+excerpt: "Practical patterns for testing, monitoring, and hardening agents so they behave predictably in production."
+---
+
+# Building Reliable Agents
+
+An agent that works in a demo often falls apart in production. The difference is not the model; it is the scaffolding around it. In this final chapter, we will cover the practical patterns that separate toy agents from production systems: testing, monitoring, guardrails, and continuous improvement.
+
+## The Reliability Gap
+
+Language models are probabilistic. Given the same prompt twice, they can produce different outputs. That non-determinism is a feature for creativity and a bug for reliability. An agent that occasionally hallucinates a tool name or generates invalid JSON is unacceptable for most business use cases.
+
+Closing the reliability gap requires a multi-layered approach:
+
+1. **Structural guarantees** — schemas, parsers, and validators.
+2. **Behavioral guardrails** — policies that constrain what the agent can do.
+3. **Observability** — logging, tracing, and metrics that reveal failure modes.
+4. **Testing** — unit tests for tools, integration tests for loops, and evaluations for end-to-end quality.
+5. **Human-in-the-loop** — escalation paths for uncertain or high-stakes decisions.
+
+## Structural Guarantees
+
+The first line of defense is to make illegal states unrepresentable.
+
+### Schema-First Output
+
+Instead of asking the model for free-form text and parsing it with regex, request structured output that conforms to a strict schema.
+
+```ts
+import { z } from 'zod'
+
+const AgentDecisionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('answer'),
+    thought: z.string(),
+    content: z.string(),
+  }),
+  z.object({
+    action: z.literal('tool_call'),
+    thought: z.string(),
+    tool: z.string(),
+    args: z.record(z.unknown()),
+  }),
+  z.object({
+    action: z.literal('ask_user'),
+    thought: z.string(),
+    question: z.string(),
+  }),
+])
+
+type AgentDecision = z.infer<typeof AgentDecisionSchema>
+```
+
+If the model returns JSON that does not match the schema, reject it and retry. Many API providers now support constrained decoding, where the model is physically unable to emit invalid JSON. Use this feature whenever it is available.
+
+<Callout type="info" title="Constrained decoding">
+  Constrained decoding enforces the schema at the token level. The model literally cannot emit a closing brace in the wrong place. This eliminates an entire class of parsing errors and should be considered table stakes for production agents.
+</Callout>
+
+### Defensive Parsing
+
+Even with constrained decoding, validate every output before acting on it.
+
+```ts
+function parseDecision(raw: string): AgentDecision {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('Model returned invalid JSON')
+  }
+
+  const result = AgentDecisionSchema.safeParse(parsed)
+  if (!result.success) {
+    throw new Error(`Schema validation failed: ${result.error.message}`)
+  }
+
+  return result.data
+}
+```
+
+Never trust the model to produce valid data. The cost of validation is negligible compared to the cost of executing an invalid tool call.
+
+## Behavioral Guardrails
+
+Guardrails are policies that constrain the agent's behavior. They can be enforced before the model runs (input guards), after the model runs (output guards), or during tool execution (action guards).
+
+### Input Guards
+
+Input guards filter or sanitize the user's prompt before it reaches the model. Common checks include:
+
+- **Prompt injection detection** — look for patterns that try to override system instructions.
+- **Toxicity filtering** — reject abusive or harmful inputs.
+- **Length limits** — cap input length to prevent context-window exhaustion.
+
+### Output Guards
+
+Output guards validate the model's decision before it is executed. Examples:
+
+- **Tool allowlists** — the agent can only call tools on an explicit list.
+- **Argument bounds** — numeric arguments must fall within safe ranges.
+- **Content policies** — answers must not contain disallowed topics or leaked secrets.
+
+### Action Guards
+
+Action guards intercept tool calls and apply additional checks:
+
+- **Rate limiting** — cap calls to expensive or sensitive APIs.
+- **Approval gates** — require human confirmation for destructive operations.
+- **Audit logging** — log every action for compliance and debugging.
+
+| Guard Type | When It Runs | Example |
+|------------|--------------|---------|
+| Input | Before model | Reject prompt injection attempt |
+| Output | After model, before action | Block call to unauthorized tool |
+| Action | During tool execution | Require human approval for refund |
+
+<Callout type="warning" title="Guardrails have costs">
+  Every guard adds latency. A system with ten sequential guard checks might add hundreds of milliseconds to each turn. Parallelize independent checks and cache repeated evaluations where possible.
+</Callout>
+
+## Observability
+
+You cannot improve what you cannot see. Production agents need comprehensive observability from day one.
+
+### Structured Logging
+
+Log every loop iteration as a structured event:
+
+```ts
+interface AgentTrace {
+  traceId: string
+  sessionId: string
+  timestamp: number
+  goal: string
+  step: number
+  observation: string
+  thought: string
+  action: string
+  result: string
+  latencyMs: number
+  tokenUsage: { prompt: number; completion: number }
+  model: string
+}
+```
+
+These traces are invaluable for debugging. When a user reports that "the agent did something weird," you can replay the exact sequence of thoughts and actions.
+
+### Metrics
+
+Track aggregate metrics to spot trends:
+
+- **Success rate** — percentage of sessions that achieved the goal without human intervention.
+- **Step count distribution** — how many loop iterations typical tasks require.
+- **Tool error rate** — percentage of tool calls that fail.
+- **Token cost per session** — the financial cost of running the agent.
+- **Latency percentiles** — p50, p95, and p99 response times.
+
+### Tracing
+
+Use distributed tracing tools (OpenTelemetry, Jaeger) to follow requests across services. If your agent calls a search API, which calls a database, tracing shows the full latency breakdown.
+
+## Testing Agents
+
+Testing agents is harder than testing traditional software because of non-determinism, but it is not impossible.
+
+### Unit Tests for Tools
+
+Every tool should have unit tests that verify its handler logic independently of the agent.
+
+```ts
+describe('getWeather', () => {
+  it('returns temperature and conditions for a valid city', async () => {
+    const result = await getWeather.handler({ city: 'Paris' })
+    expect(result.temperature).toBeDefined()
+    expect(result.conditions).toBeDefined()
+  })
+
+  it('throws for an unknown city', async () => {
+    await expect(getWeather.handler({ city: 'Xylophone' })).rejects.toThrow()
+  })
+})
+```
+
+### Integration Tests for the Loop
+
+Test the full loop with mocked tools and fixed model responses. This verifies that the orchestrator handles sequences correctly.
+
+```ts
+it('completes a two-step research task', async () => {
+  const mockModel = createMockModel([
+    { action: 'tool_call', tool: 'search', args: { query: 'AI agents' } },
+    { action: 'answer', content: 'AI agents are systems that...' },
+  ])
+
+  const agent = new Agent({ model: mockModel, tools: [mockSearch] })
+  const result = await agent.run('Tell me about AI agents')
+
+  expect(result).toContain('AI agents are systems')
+  expect(mockSearch.handler).toHaveBeenCalledTimes(1)
+})
+```
+
+### Evaluations for Quality
+
+Evaluations measure the agent's output quality against a benchmark dataset. They are usually run offline, not in production.
+
+| Evaluation Type | What It Measures | How |
+|-----------------|------------------|-----|
+| Correctness | Is the answer factually right? | Compare against gold-standard answers |
+| Completeness | Did the agent address all parts of the request? | Checklist of required information |
+| Safety | Does the output violate policies? | Automated classifiers + human review |
+| Helpfulness | Is the output useful to the user? | Human ratings or LLM-as-judge |
+
+<Callout type="info" title="LLM-as-judge">
+  Using a strong model to evaluate a weaker model's output is increasingly common. It is cheaper than human review and often consistent, but it can inherit the judge model's biases. Use it for rapid iteration, not final validation.
+</Callout>
+
+## Human-in-the-Loop
+
+No agent is perfect. Designing graceful escalation paths is as important as designing the agent itself.
+
+### When to Escalate
+
+Define clear criteria for human escalation:
+
+- The agent is uncertain (low confidence score).
+- The user explicitly requests a human.
+- The task involves sensitive data or high financial value.
+- The agent has failed multiple times on the same task.
+- A guardrail has flagged the input or output.
+
+### Escalation UX
+
+When escalating, preserve context. The human operator should see:
+
+- The original user request.
+- The agent's thought history.
+- The tools called and their results.
+- Any errors or guardrail triggers.
+
+Do not make the user repeat information they already gave to the agent.
+
+## Continuous Improvement
+
+Reliability is not a destination; it is a process.
+
+### Feedback Loops
+
+Collect feedback at multiple points:
+
+- **Explicit feedback** — thumbs up / thumbs down on agent responses.
+- **Implicit feedback** — did the user accept the agent's answer or ask a follow-up?
+- **Outcome feedback** — did the task complete successfully?
+
+Use this feedback to fine-tune the model, improve tool descriptions, or adjust guardrail thresholds.
+
+### A/B Testing
+
+When you change the prompt, the model, or the loop pattern, run an A/B test. Compare the new version against the old on real traffic, measuring success rate, latency, and cost.
+
+<Callout type="warning" title="Beware prompt drift">
+  Over time, small prompt tweaks accumulate and can interact in unexpected ways. Version control your prompts like code. Review diffs before deploying, and have a rollback plan.
+</Callout>
+
+## Summary
+
+- Reliability requires structural guarantees, behavioral guardrails, observability, testing, and human escalation.
+- Schema-first output and constrained decoding eliminate whole classes of parsing errors.
+- Guardrails operate at three levels: input, output, and action.
+- Observability means structured logging, aggregate metrics, and distributed tracing.
+- Test tools in isolation, the loop with mocks, and end-to-end quality with evaluations.
+- Human-in-the-loop is a feature, not a bug. Design escalation paths that preserve context.
+- Continuous improvement depends on feedback loops, A/B testing, and rigorous prompt version control.

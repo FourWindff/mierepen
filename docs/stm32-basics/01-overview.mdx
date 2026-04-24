@@ -1,0 +1,74 @@
+---
+title: "STM32 Overview"
+sidebar_position: 1
+excerpt: "Understand the STM32 family, toolchains, and the HAL ecosystem before writing your first line of firmware."
+---
+
+# STM32 Overview
+
+The STM32 family from STMicroelectronics is one of the most widely used ARM Cortex-M microcontroller lines in embedded development. Before you toggle your first LED or configure a UART peripheral, it helps to understand the landscape: which family fits your project, what toolchain you will use, and how the hardware abstraction layer (HAL) keeps your code portable.
+
+## Why STM32?
+
+STM32 microcontrollers span a massive performance and price range. You can find sub-dollar chips for simple sensor nodes and dual-core, high-frequency parts for rich graphical user interfaces. The common thread is the ARM Cortex-M core, which means:
+
+- Toolchain compatibility across the entire family
+- A huge ecosystem of libraries, debuggers, and community knowledge
+- Predictable interrupt behavior and memory maps
+
+That portability is powerful, but it also means the datasheet and reference manual are your primary sources of truth. The HAL can abstract register details, yet understanding what happens underneath will save you hours of debugging when timing or power consumption matters.
+
+## Family Landscape
+
+STM32 parts are grouped into series that target different performance points. Choosing the right series early prevents headaches with pin availability, memory size, and peripheral count later in the project.
+
+| Series | Core | Typical Clock | Use Case |
+|--------|------|---------------|----------|
+| STM32F0 | Cortex-M0 | 48 MHz | Cost-sensitive, simple control |
+| STM32F1 | Cortex-M3 | 72 MHz | General purpose, legacy but popular |
+| STM32F4 | Cortex-M4 | 168 MHz | DSP, audio, high-speed USB |
+| STM32G0 | Cortex-M0+ | 64 MHz | Modern low-power replacement for F0 |
+| STM32H7 | Cortex-M7 | 480 MHz | High performance, complex graphics |
+
+<Callout type="info" title="Nucleo boards">
+  If you are just starting, grab a Nucleo-64 or Nucleo-32 board. They include an onboard ST-Link debugger, break out most pins, and are often cheaper than the bare chip itself.
+</Callout>
+
+## Development Workflow
+
+Most STM32 projects follow the same rough workflow regardless of the exact toolchain:
+
+1. **Select the MCU** using STM32CubeMX or by hand.
+2. **Configure clocks** so the CPU and peripherals run at the desired frequencies.
+3. **Enable peripherals** and assign pins.
+4. **Generate code** or write register-level initialization.
+5. **Build, flash, and debug** with OpenOCD, ST-Link, or the IDE's built-in tools.
+
+### STM32CubeMX
+
+STM32CubeMX is a graphical configuration tool. It generates startup code, linker scripts, and HAL initialization routines. It is not perfect, the generated code can be verbose, but it gives you a working baseline in minutes.
+
+<Callout type="warning" title="Generated code hygiene">
+  CubeMX regenerates files inside user code sections if you keep them between the `BEGIN` and `END` comments. Move your application logic into separate files when possible so regeneration does not overwrite it.
+</Callout>
+
+## HAL vs LL vs Registers
+
+ST provides two official abstraction layers:
+
+- **HAL** is high-level, portable, and blocking by default. It is great for prototyping.
+- **LL** is a light register wrapper. It is faster and smaller but less portable across series.
+- **Registers** give total control. You read and write directly to memory-mapped addresses.
+
+For learning, start with HAL. Once you are comfortable, peek at the LL source or the reference manual to see what registers are actually touched. That layered understanding is what separates a developer who copies examples from one who can debug a hard fault at 2 a.m.
+
+## Reference Manuals and Datasheets
+
+Every STM32 part has two key documents:
+
+- **Datasheet**: pinouts, electrical characteristics, package drawings.
+- **Reference Manual**: detailed peripheral descriptions, register maps, and timing diagrams.
+
+Keep the reference manual open while you code. The HAL documentation is thin; the reference manual is exhaustive.
+
+> The reference manual is not optional reading. It is the contract between your code and the silicon.

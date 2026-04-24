@@ -72,6 +72,15 @@ body {
   @apply text-4xl font-black uppercase tracking-tight leading-tight mt-16 mb-8;
 }
 
+.prose-custom > h1:first-child,
+.prose-custom > h2:first-child,
+.prose-custom > h3:first-child,
+.prose-custom > h4:first-child,
+.prose-custom > h5:first-child,
+.prose-custom > h6:first-child {
+  @apply mt-0;
+}
+
 .prose-custom h2 {
   @apply text-2xl font-bold leading-tight mt-12 mb-6;
 }

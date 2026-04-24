@@ -1,0 +1,127 @@
+---
+title: "GPIO Configuration"
+sidebar_position: 2
+excerpt: "Learn how to configure pins as inputs or outputs, manage pull resistors, and understand output speed and drive strength."
+---
+
+# GPIO Configuration
+
+General Purpose Input/Output (GPIO) is the simplest peripheral on an STM32, yet it is the foundation of almost every project. LEDs, buttons, communication lines, and sensor chip-selects all pass through GPIO. Understanding the configuration registers, even when using the HAL, prevents common bugs like floating inputs, slow edges, and unexpected current draw.
+
+## GPIO Hardware Basics
+
+Each GPIO pin on an STM32 is connected to a port, usually named `GPIOA`, `GPIOB`, `GPIOC`, and so on. Each port can have up to sixteen pins, labeled `Pin0` through `Pin15`. The physical pin on the chip package is determined by a combination of port and pin number, and you will find this mapping in the datasheet.
+
+A single pin can operate in several modes:
+
+| Mode | Direction | Typical Use |
+|------|-----------|-------------|
+| Input | In | Reading buttons, external interrupts |
+| Output | Out | Driving LEDs, chip-select lines |
+| Alternate Function | Out/In | UART, SPI, I2C, TIM pins |
+| Analog | Neither | ADC inputs, DAC outputs, low-power |
+
+## Output Configuration
+
+When a pin is an output, you choose two additional parameters: speed and drive type.
+
+### Output Speed
+
+The output speed setting controls the slew rate of the pin, how quickly it transitions between low and high. Faster edges allow higher toggle frequencies but generate more electromagnetic noise and consume slightly more power.
+
+- **Low**: up to 2 MHz
+- **Medium**: up to 10 MHz
+- **High**: up to 50 MHz
+
+For an LED, low speed is plenty. For an SPI clock running at 20 MHz, you will need high speed on the clock and data lines.
+
+### Push-Pull vs Open-Drain
+
+- **Push-pull** actively drives the line high or low. It is the default for LEDs and most digital outputs.
+- **Open-drain** only pulls the line low; an external pull-up resistor brings it high. This is required for I2C and useful when multiple devices share a single line.
+
+<Callout type="warning" title="Missing pull-ups on open-drain">
+  If you configure a pin as open-drain and forget the external pull-up, the line will float high instead of being driven high. Logic analyzers may show a weak high, but the signal will be noisy and slow.
+</Callout>
+
+## Input Configuration
+
+Inputs are more dangerous than outputs because an unconfigured pin can float. A floating pin picks up capacitive noise from the environment and randomly reads high or low. This wastes power and can trigger interrupts unexpectedly.
+
+### Pull-Up and Pull-Down
+
+ST provides internal pull-up and pull-down resistors, typically around 40 kΩ. Use them when your external circuit does not provide a defined idle state.
+
+- **Pull-up**: pin reads high when nothing else is driving it. Common for active-low buttons.
+- **Pull-down**: pin reads low when nothing else is driving it. Common for active-high signals.
+
+<Callout type="info" title="Internal vs external resistors">
+  Internal pull resistors are convenient for prototypes, but if your design requires tight tolerance or low leakage, use an external resistor with a precise value.
+</Callout>
+
+## HAL GPIO Example
+
+Below is a minimal HAL example that configures `PA5` as a push-pull output and toggles it in the main loop.
+
+```c
+#include "stm32f4xx_hal.h"
+
+void SystemClock_Config(void);
+
+int main(void)
+{
+    HAL_Init();
+    SystemClock_Config();
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_5;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    while (1)
+    {
+        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+        HAL_Delay(500);
+    }
+}
+```
+
+Notice that the GPIO clock must be enabled before initializing the pin. Every peripheral on an STM32 sits behind a clock gate. Forgetting to enable the clock is the most common reason a pin appears to do nothing.
+
+## Register-Level View
+
+If you prefer to see the registers directly, the equivalent setup for `PA5` on an STM32F4 looks like this:
+
+```c
+// Enable GPIOA clock
+RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+
+// Set PA5 as output (MODER5 = 01)
+GPIOA->MODER &= ~(3U << (5 * 2));
+GPIOA->MODER |=  (1U << (5 * 2));
+
+// Push-pull, low speed, no pull
+GPIOA->OTYPER &= ~(1U << 5);
+GPIOA->OSPEEDR &= ~(3U << (5 * 2));
+GPIOA->PUPDR &= ~(3U << (5 * 2));
+```
+
+Each port has four 32-bit configuration registers: `MODER`, `OTYPER`, `OSPEEDR`, and `PUPDR`. Two additional registers, `IDR` and `ODR`, let you read the input state and write the output state. The `BSRR` register provides atomic bit set and reset operations, which are useful when multiple threads or an ISR and main loop access the same port.
+
+## Atomic Bit Manipulation with BSRR
+
+The `BSRR` register is one of the nicest features of STM32 GPIO. Writing a `1` to bits 0-15 sets the corresponding `ODR` bit; writing a `1` to bits 16-31 resets it. These operations are atomic, meaning they complete in a single bus cycle and cannot be interrupted midway.
+
+```c
+// Atomic set PA5 high
+GPIOA->BSRR = GPIO_BSRR_BS5;
+
+// Atomic reset PA5 low
+GPIOA->BSRR = GPIO_BSRR_BR5;
+```
+
+This is especially important when an interrupt routine and the main loop both manipulate pins on the same port. A read-modify-write sequence on `ODR` could be corrupted by an interrupt; `BSRR` avoids that entirely.

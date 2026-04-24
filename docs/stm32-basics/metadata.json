@@ -1,0 +1,6 @@
+{
+  "title": "STM32 Basics",
+  "summary": "A hands-on introduction to STM32 microcontrollers: GPIO, timers, UART, and the HAL ecosystem.",
+  "date": "2026-04-24",
+  "label": "Tutorial"
+}

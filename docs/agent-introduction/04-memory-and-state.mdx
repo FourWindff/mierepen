@@ -1,0 +1,442 @@
+---
+title: "Memory and State"
+sidebar_position: 4
+excerpt: "Understand how agents remember, forget, and retrieve information across short tasks and long lifetimes."
+---
+
+# Memory and State
+
+Memory is what turns a reactive system into a learning one. Without memory, every interaction starts from zero. With memory, an agent can build context, personalize responses, and improve over time. In this chapter, we will explore the mechanics of agent memory, from the context window to vector databases, and discuss the hard problems of retrieval, forgetting, and consistency.
+
+## Why Memory Matters
+
+Consider two interactions:
+
+1. **User:** "Remind me to call the dentist at 3 p.m."
+   **Agent:** "Okay, I will remind you."
+   *(Five minutes later)*
+   **User:** "What did I ask you to remind me about?"
+   **Agent:** "I do not have any record of that."
+
+2. **User:** "Remind me to call the dentist at 3 p.m."
+   **Agent:** "Okay, I will remind you to call the dentist at 3 p.m."
+   *(Five minutes later)*
+   **User:** "What did I ask you to remind me about?"
+   **Agent:** "You asked me to remind you to call the dentist at 3 p.m."
+
+The difference is memory. The first agent is stateless; the second is stateful. Statefulness is not a luxury in most real-world applications; it is a requirement.
+
+## The Memory Hierarchy
+
+Agent memory is best understood as a hierarchy of storage layers, each with different latency, capacity, and lifespan.
+
+### Layer 1: Working Memory
+
+Working memory is the information currently inside the model's context window. It is the fastest layer because it requires no external retrieval, but it is also the most constrained. Every token in the context window costs money and attention.
+
+#### Context Window Management
+
+As conversations grow, the context window fills. When it approaches the limit, you must decide what to keep and what to discard. Common strategies include:
+
+- **Truncation** — drop the oldest messages.
+- **Summarization** — compress old turns into a short summary.
+- **Windowing** — keep only the last N messages.
+- **Priority eviction** — score messages by importance and drop the lowest scores.
+
+| Strategy | Pros | Cons |
+|----------|------|------|
+| Truncation | Simple, predictable | Loses early context permanently |
+| Summarization | Retains semantic content | Lossy, adds latency |
+| Windowing | Easy to implement | Arbitrary cutoff may drop critical info |
+| Priority eviction | Keeps important context | Requires a good scoring function |
+
+<Callout type="info" title="Summarization is an art">
+  A bad summary is worse than no summary. If you compress ten turns of nuanced discussion into "The user had questions about the project," you have destroyed useful state. Invest in a dedicated summarization prompt or model.
+</Callout>
+
+### Layer 2: Short-Term Memory
+
+Short-term memory persists across turns within a single session but is lost when the session ends. It is typically stored in an in-memory data structure or a fast cache like Redis.
+
+#### Use Cases
+
+Short-term memory is ideal for:
+
+- **Multi-step plans** — the agent's current plan and which steps are complete.
+- **Intermediate results** — data fetched from tools that will be needed again soon.
+- **User preferences discovered mid-session** — "Oh, you prefer Celsius over Fahrenheit."
+- **Scratchpad** — a private space where the agent can draft thoughts before presenting them.
+
+```ts
+interface ShortTermMemory {
+  sessionId: string
+  plan: PlanStep[]
+  scratchpad: string
+  preferences: Record<string, unknown>
+  toolResults: Map<string, unknown>
+}
+```
+
+### Layer 3: Long-Term Memory
+
+Long-term memory survives across sessions. It is the agent's accumulated knowledge about the user, the domain, and itself. Implementing long-term memory well is one of the hardest problems in agent design.
+
+#### Storage Backends
+
+| Backend | Best For | Query Pattern |
+|---------|----------|---------------|
+| Vector database (Pinecone, Weaviate, pgvector) | Semantic similarity search | Approximate nearest neighbor |
+| Graph database (Neo4j, Memgraph) | Relational knowledge, entity networks | Graph traversal |
+| Document store (MongoDB, Firestore) | Structured records, user profiles | Exact match, range queries |
+| Key-value store (Redis, DynamoDB) | Fast lookups, session state | Key lookup |
+
+Most production agents use a combination: vector search for semantic recall, a graph for relational reasoning, and a document store for structured user data.
+
+#### Embedding and Retrieval
+
+The standard pattern for semantic long-term memory is:
+
+1. **Embed** — convert text memories into dense vectors using an embedding model.
+2. **Store** — save the vector, the raw text, and metadata (timestamp, source, importance) in a vector database.
+3. **Query** — embed the current query, search for nearest neighbors, and retrieve the top-K results.
+4. **Rerank** — optionally rerank results with a cross-encoder for better relevance.
+
+```ts
+async function retrieveMemories(query: string, k = 5) {
+  const queryVector = await embed(query)
+  const candidates = await vectorDB.search(queryVector, k * 2)
+  const ranked = await reranker.rerank(query, candidates)
+  return ranked.slice(0, k)
+}
+```
+
+<Callout type="warning" title="Embedding drift">
+  If you change your embedding model, all previously stored vectors become incompatible. Plan for model versioning and, if necessary, re-embedding campaigns. Treat embeddings like a database schema: version them and migrate carefully.
+</Callout>
+
+## Forgetting and Decay
+
+Memory without forgetting is a liability. Stale information confuses the agent, bloats retrieval, and can lead to embarrassing mistakes.
+
+### Time-Based Decay
+
+One simple approach is to attach a timestamp to every memory and decay its relevance score over time.
+
+```ts
+function decayScore(originalScore: number, ageMs: number, halfLifeMs: number) {
+  return originalScore * Math.pow(0.5, ageMs / halfLifeMs)
+}
+```
+
+Memories with scores below a threshold are archived or deleted.
+
+### Importance-Based Retention
+
+Not all memories are equally valuable. A memory like "The user's name is Alice" should last forever. A memory like "Alice searched for socks at 2 a.m." probably should not.
+
+You can ask the model to score importance at storage time:
+
+```ts
+interface Memory {
+  content: string
+  embedding: number[]
+  timestamp: number
+  importance: number // 0-1, assigned by the model
+  source: 'user' | 'tool' | 'inference'
+}
+```
+
+High-importance memories are exempt from time-based decay or decay much more slowly.
+
+### Explicit Forgetting
+
+Users should be able to delete memories. Implement a `forget` tool or command that removes specific memories from all layers. This is not just a privacy requirement; it is a trust requirement.
+
+<Callout type="error" title="GDPR and compliance">
+  If your agent operates in jurisdictions with data protection laws, you must support explicit deletion, data portability, and audit trails for memory storage. Design these features in from the start, not as afterthoughts.
+</Callout>
+
+## Consistency and Conflicts
+
+When an agent retrieves multiple memories, those memories can contradict each other.
+
+### Conflict Scenarios
+
+- **Temporal conflict** — "Alice lives in Paris" (2023) vs. "Alice lives in Tokyo" (2025).
+- **Source conflict** — "The API returns 200" vs. "The API returns 404" from different tools.
+- **Inference conflict** — the agent inferred "Alice likes jazz" but Alice explicitly said she hates it.
+
+### Resolution Strategies
+
+| Strategy | How It Works | When to Use |
+|----------|--------------|-------------|
+| Recency wins | Prefer the most recent memory | Factual state that changes over time |
+| Source authority | Prefer user-stated over inferred | Personal preferences, explicit corrections |
+| Confidence scoring | Attach confidence to each memory and prefer higher confidence | Noisy data sources |
+| Explicit reconciliation | Ask the user or a stronger model to resolve | High-stakes contradictions |
+
+## State Machines for Complex Flows
+
+For agents that manage long-running processes, a pure memory layer is not enough. You need a state machine that encodes valid transitions and enforces invariants.
+
+### Example: Order Processing Agent
+
+```ts
+type OrderState =
+  | 'pending_payment'
+  | 'payment_confirmed'
+  | 'fulfillment_started'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+
+const validTransitions: Record<OrderState, OrderState[]> = {
+  pending_payment: ['payment_confirmed', 'cancelled'],
+  payment_confirmed: ['fulfillment_started', 'cancelled'],
+  fulfillment_started: ['shipped'],
+  shipped: ['delivered'],
+  delivered: [],
+  cancelled: [],
+}
+```
+
+The state machine lives alongside memory. Memory stores the history; the state machine enforces the rules.
+
+## Observability of Memory
+
+Debugging memory is hard because the effects are delayed and distributed. A bad retrieval at step three might not cause a visible failure until step twelve.
+
+### Logging Best Practices
+
+- Log every memory write with its source, timestamp, and embedding model version.
+- Log every memory read with the query, the retrieved memories, and their similarity scores.
+- Log every summarization with the original length, the summary length, and the summarization prompt version.
+
+### Evaluation
+
+Set up automated evaluations for your memory system:
+
+- **Recall@K** — given a known relevant memory, can the system retrieve it in the top K results?
+- **Precision@K** — of the top K retrieved memories, how many are actually relevant?
+- **Consistency checks** — inject known facts, wait, then query; verify the facts are still retrievable.
+
+<Callout type="info" title="Memory evaluation is ongoing">
+  Memory quality degrades over time as the corpus grows and embeddings drift. Schedule regular evaluation runs and alert when metrics cross thresholds.
+</Callout>
+
+## Summary
+
+- Memory turns stateless interactions into stateful relationships.
+- The memory hierarchy has three layers: working (context window), short-term (session cache), and long-term (persistent store).
+- Long-term memory usually relies on vector search, but graph and document stores play important supporting roles.
+- Forgetting is as important as remembering; implement decay, importance scoring, and explicit deletion.
+- Conflicts between memories are inevitable; have a resolution strategy.
+- State machines complement memory for processes with strict transition rules.
+- Observability and evaluation are essential because memory failures are subtle and delayed.
+
+## Designing a Memory Write Policy
+
+One of the fastest ways to damage an agent is to let it write everything to memory. Raw accumulation feels safe at first, but over time it produces a noisy archive full of duplicate, low-value, and ambiguous facts. A memory system needs a write policy just as much as it needs a retrieval policy.
+
+### What Should Be Stored
+
+Good candidates for memory storage usually share at least one of these traits:
+
+- They are stable over time.
+- They materially improve future task performance.
+- They were explicitly stated by the user.
+- They are expensive to recompute or refetch.
+
+Examples include account identifiers, user preferences, long-running project goals, and explicit corrections such as "Use TypeScript, not JavaScript, for this repository."
+
+### What Should Not Be Stored
+
+Many facts should never become durable memories:
+
+- Temporary browsing context.
+- One-off transient requests.
+- Low-confidence inferences about taste or intent.
+- Sensitive details that are not required for future service.
+
+The rule is simple: if you cannot explain why a future interaction would benefit from storing it, do not write it.
+
+### Scoring Before Writing
+
+In mature systems, memory writes are often gated by a scoring stage. The system estimates whether a candidate fact is relevant, durable, specific, and safe to retain.
+
+```ts
+interface WriteDecision {
+  shouldStore: boolean
+  relevance: number
+  durability: number
+  sensitivity: number
+  reason: string
+}
+```
+
+This extra step adds latency, but it keeps the corpus from collapsing into clutter.
+
+## Memory Compression Strategies
+
+As the corpus grows, storage cost is only part of the problem. The bigger issue is retrieval quality. Too many overlapping memories make ranking unstable and increase the chance that the model sees redundant or contradictory evidence.
+
+### Rolling Summaries
+
+A common pattern is to merge many fine-grained memories into a single higher-level summary. For example, ten task updates like "the user prefers shorter answers" can be compressed into one durable preference record.
+
+### Deduplication
+
+Deduplication can happen in several ways:
+
+- Hash exact text matches.
+- Cluster semantically similar memories and keep one representative.
+- Mark old entries as superseded by a newer normalized statement.
+
+This is especially important for agents that talk frequently with the same user or repeatedly inspect the same codebase.
+
+### Hierarchical Memory
+
+Not every memory should sit at the same abstraction level. It is often better to maintain both raw events and curated summaries:
+
+- Raw memories preserve detail for audits and debugging.
+- Summaries provide efficient retrieval for normal operation.
+- Profiles aggregate long-term facts into a compact user model.
+
+This layered approach prevents the model from drowning in event logs when all it needs is the current stable truth.
+
+## Retrieval Failures in Practice
+
+Retrieval problems are usually subtle. The agent may not obviously hallucinate; it may simply answer with incomplete context, outdated preferences, or the wrong version of the truth.
+
+### Failure Mode: Near Misses
+
+The system retrieves memories that are semantically close but operationally wrong. A memory about "deploying the staging environment" may outrank the newer memory about production deployment if the query is underspecified.
+
+### Failure Mode: Over-Retrieval
+
+Bringing back too many memories creates its own failure mode. The model has to reconcile too much evidence, and the most relevant memory may lose salience inside a crowded prompt.
+
+### Failure Mode: Underspecified Queries
+
+Memory retrieval is only as good as the query. If the agent asks the retriever something vague like "What matters here?", the system cannot reliably surface the right facts. Query rewriting often helps:
+
+```ts
+function buildMemoryQuery(task: string, userProfile: string, toolState: string) {
+  return `
+Task: ${task}
+Known user profile: ${userProfile}
+Current tool state: ${toolState}
+Retrieve only memories that change the next action.
+  `.trim()
+}
+```
+
+The key idea is that retrieval should be driven by decision relevance, not by generic semantic similarity alone.
+
+## User Memory vs Task Memory
+
+It is useful to separate memories about the person from memories about the current job.
+
+### User Memory
+
+User memory captures facts that generalize across sessions:
+
+- Preferred tone.
+- Preferred units.
+- Accessibility needs.
+- Standing project constraints.
+
+These memories shape behavior broadly and should be retrieved often.
+
+### Task Memory
+
+Task memory is narrower. It includes facts such as active objectives, tool outputs, intermediate drafts, and open questions for the current assignment. It may persist for hours or days, but often should not live forever.
+
+### Why the Separation Matters
+
+Mixing user memory and task memory in one undifferentiated store causes confusion. The retriever may surface a stale implementation detail when what the agent really needs is the user's long-term preference. Separate indexes, schemas, or namespaces can reduce this problem substantially.
+
+## Memory and Tool Use
+
+Tool-using agents produce a large amount of derived state. Some of it should be remembered; much of it should not.
+
+### Tool Results as Evidence
+
+A tool call should usually be treated as evidence, not truth. If an external API says a package version is current, that fact may become stale quickly. Tool-derived memories need timestamps and provenance.
+
+### Provenance Tracking
+
+When a memory comes from a tool, store where it came from:
+
+| Field | Purpose |
+|-------|---------|
+| sourceTool | Which tool generated the fact |
+| sourceId | Identifier such as a URL, record id, or file path |
+| observedAt | When the tool output was seen |
+| freshnessHint | Expected shelf life of the fact |
+
+Without provenance, it becomes hard to tell whether a remembered fact is a durable truth or just a snapshot.
+
+### Revalidation
+
+Before acting on high-impact memories, agents should often revalidate them. This matters for:
+
+- Prices.
+- Inventory levels.
+- Deployment status.
+- External policy documents.
+
+Memory can suggest what to check; it should not always replace the check itself.
+
+## Building for Long Conversations
+
+Long-running conversations stress every layer of memory. Context windows fill, summaries become lossy, and the agent risks drifting away from the user's actual goal.
+
+### Session Checkpoints
+
+One way to stabilize long interactions is to create periodic checkpoints:
+
+1. Summarize completed work.
+2. Capture unresolved questions.
+3. Record any durable user preferences that appeared.
+4. Reset the working context with the checkpoint as the new baseline.
+
+This gives the conversation a clean spine instead of an endlessly growing transcript.
+
+### Drift Detection
+
+Conversation drift happens when the stored plan no longer matches the live task. The agent may keep pursuing an old objective simply because it was summarized early and then repeated.
+
+Useful drift signals include:
+
+- The user issues a correction.
+- The agent's retrieved plan conflicts with the latest turn.
+- The top retrieved memories stop matching the active tool state.
+
+When drift is detected, the system should rebuild the session summary instead of continuing to append patches to a bad mental model.
+
+## Practical Guardrails
+
+Memory systems fail in production when they are treated as a convenience feature instead of a safety-critical subsystem.
+
+### Guardrail 1: Separate Facts from Inferences
+
+Do not store inferred preferences in the same form as explicit user statements. The memory schema should distinguish:
+
+- What the user directly said.
+- What a tool observed.
+- What the model inferred.
+
+That separation makes later conflict resolution much easier.
+
+### Guardrail 2: Keep Deletion Cheap
+
+Deletion must be operationally easy. If forgetting a fact requires touching five backends manually, then in practice the system does not support forgetting.
+
+### Guardrail 3: Inspect the Prompt Assembly
+
+Many teams evaluate retrieval but ignore prompt assembly. A strong retriever can still fail if the prompt jams memories into the wrong place, strips their timestamps, or removes provenance labels. Always inspect the exact memory block that the model actually receives.
+
+## Closing Thought
+
+The hard part of memory is not storing more text. The hard part is deciding what should persist, what should fade, and what should be trusted at action time. Agents become more useful when memory is selective, structured, and observable rather than merely large.

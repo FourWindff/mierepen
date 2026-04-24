@@ -1,0 +1,217 @@
+---
+title: "Agent Architecture"
+sidebar_position: 2
+excerpt: "Explore the structural components that make an agent work: the reasoning core, tool registry, memory layer, and orchestration logic."
+---
+
+# Agent Architecture
+
+Building a reliable agent requires more than wrapping a model in a while-loop. In this chapter, we will dissect the major architectural components, explain how they interact, and show you where most agent projects succeed or fail.
+
+## The Four Pillars
+
+Every production-grade agent can be decomposed into four pillars:
+
+1. **Reasoning Core** — the language model that decides what to do next.
+2. **Tool Registry** — the catalog of external capabilities the agent can invoke.
+3. **Memory Layer** — the storage and retrieval system for context beyond the current conversation.
+4. **Orchestration Layer** — the control logic that manages the loop, handles errors, and decides when to stop.
+
+These pillars are not theoretical. When an agent fails in production, the root cause is usually a flaw in one of these four areas, not the underlying model.
+
+## The Reasoning Core
+
+The reasoning core is the brain of the agent. In most systems today, this is a large language model accessed through an API or running locally. Its job is to take the current state and produce either:
+
+- A direct answer to the user.
+- A plan of sub-tasks to execute.
+- A tool call with specific arguments.
+
+### Choosing the Right Model
+
+Not every task requires the most capable (and expensive) model. A common pattern is to use a fast, cheap model for simple routing decisions and a larger model for complex reasoning.
+
+| Task Type | Recommended Model Tier | Rationale |
+|-----------|----------------------|-----------|
+| Routing / classification | Small / fast | Low latency, high throughput, cheap |
+| Summarization | Medium | Balanced quality and cost |
+| Complex reasoning / coding | Large | Higher accuracy on nuanced tasks |
+| Safety / policy checks | Dedicated fine-tuned | Consistent behavior on sensitive inputs |
+
+<Callout type="info" title="Model cascading">
+  Some advanced systems use model cascading: try the small model first, and only escalate to the large model if the small one is uncertain or the user challenges the answer.
+</Callout>
+
+### Structured Output
+
+Modern agents rarely ask the model for free-form text. Instead, they request structured output, usually JSON, that can be parsed and validated deterministically.
+
+```ts
+interface AgentDecision {
+  thought: string
+  action: 'answer' | 'tool_call' | 'ask_user' | 'plan'
+  payload: unknown
+}
+```
+
+By forcing the model to emit a schema, you gain:
+
+- **Predictability** — downstream code knows what fields to expect.
+- **Validation** — you can reject malformed outputs and retry.
+- **Observability** — the `thought` field becomes a natural audit log.
+
+## The Tool Registry
+
+Tools are the hands and eyes of the agent. Without tools, an agent is just a chatbot. With the right tools, it can interact with databases, search the web, execute code, and control hardware.
+
+### Defining a Tool
+
+A tool definition typically includes:
+
+- **Name** — a short, semantic identifier.
+- **Description** — a natural-language explanation of what the tool does.
+- **Parameters** — a JSON Schema describing the required and optional inputs.
+- **Handler** — the actual function that runs when the tool is called.
+
+```ts
+interface Tool {
+  name: string
+  description: string
+  parameters: JSONSchema
+  handler: (args: unknown) => Promise<unknown>
+}
+```
+
+The description is surprisingly important. The reasoning core decides which tool to call based entirely on the name and description you provide. A vague description leads to incorrect tool selection.
+
+### Tool Discovery vs. Hard-Coding
+
+There are two philosophies for making tools available to an agent:
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Hard-coded list | Simple, predictable, easy to test | Inflexible, requires code changes to add tools |
+| Dynamic discovery | Flexible, extensible at runtime | Harder to debug, risk of tool hallucination |
+
+For most production systems, a hybrid works best: a curated registry of well-tested tools, with a dynamic layer for user-defined or sandboxed tools.
+
+<Callout type="warning" title="Tool security">
+  Every tool is an attack surface. If your agent can execute shell commands or write to the filesystem, an attacker who controls the prompt can exploit those capabilities. Always run tools in sandboxed environments with least-privilege permissions.
+</Callout>
+
+## The Memory Layer
+
+Memory is what separates a stateless chatbot from a stateful agent. It allows the agent to learn from previous interactions, maintain context across long tasks, and personalize responses over time.
+
+### Types of Memory
+
+Memory is usually categorized by lifespan and scope:
+
+#### Working Memory
+
+Working memory is the context window of the current conversation. It is fast, always available, and limited by the model's token budget. When the context window fills up, you must compress, summarize, or evict information.
+
+#### Short-Term Memory
+
+Short-term memory persists across turns in a single session but is lost when the session ends. It is useful for tracking multi-step plans, intermediate results, and user preferences discovered during the current task.
+
+#### Long-Term Memory
+
+Long-term memory survives across sessions. It is typically stored in a vector database, a graph database, or a traditional relational store. Long-term memory enables personalization, continuous learning, and knowledge accumulation.
+
+| Memory Type | Scope | Storage | Latency |
+|-------------|-------|---------|---------|
+| Working | Current turn | Model context window | Instant |
+| Short-term | Current session | In-memory / cache | Milliseconds |
+| Long-term | Across sessions | Database / vector store | Tens of milliseconds |
+
+### Memory Retrieval
+
+Storing memories is only half the problem. The other half is retrieving the right memory at the right time. Common retrieval strategies include:
+
+- **Semantic search** — embed the current query and find similar past memories.
+- **Recency bias** — surface the most recent memories first.
+- **Importance scoring** — tag memories by importance and retrieve high-importance items preferentially.
+- **Graph traversal** — follow relational links between memories in a knowledge graph.
+
+<Callout type="info" title="Memory is not magic">
+  Adding a vector database does not automatically make your agent smart. Garbage in, garbage out still applies. The quality of memories depends on what you choose to store, how you summarize it, and how you update or delete stale information.
+</Callout>
+
+## The Orchestration Layer
+
+The orchestration layer is the glue that holds the other three pillars together. It is also where most bugs hide.
+
+### Responsibilities
+
+The orchestrator manages:
+
+- **The main loop** — running perception, reasoning, and action in sequence.
+- **Error handling** — catching tool failures, model refusals, and timeouts.
+- **Retry logic** — deciding whether to retry a failed step, escalate to a human, or abort.
+- **Termination** — determining when the goal is achieved or when to give up.
+- **Observability** — emitting structured logs, traces, and metrics.
+
+### Loop Patterns
+
+There are several common patterns for structuring the main loop:
+
+#### Simple ReAct
+
+The simplest pattern: observe, think, act, repeat. Easy to implement and debug, but can be slow for multi-step tasks because every sub-decision requires a full model call.
+
+#### Plan-and-Execute
+
+The agent first generates a full plan, then executes it step by step. This reduces total model calls but can fail if the plan turns out to be infeasible mid-execution.
+
+#### Tree of Thoughts
+
+The agent explores multiple reasoning paths in parallel, evaluates them, and pursues the most promising branch. Powerful for complex search and optimization tasks, but expensive in terms of token usage.
+
+| Pattern | Best For | Trade-off |
+|---------|----------|-----------|
+| Simple ReAct | Interactive, exploratory tasks | High latency, many model calls |
+| Plan-and-Execute | Well-structured, multi-step tasks | Risk of brittle plans |
+| Tree of Thoughts | Search, optimization, creative tasks | High cost, complex implementation |
+
+<Callout type="error" title="The halting problem is real">
+  An agent with an open-ended loop can run forever. Always implement a maximum step count, a token budget, and a timeout. These are not optional optimizations; they are safety requirements.
+</Callout>
+
+## Wiring It All Together
+
+Here is a simplified view of how the four pillars interact during a single loop iteration:
+
+```ts
+async function agentLoop(goal: string, maxSteps = 10) {
+  const memory = new MemoryLayer()
+  const tools = new ToolRegistry()
+  const model = new ReasoningCore()
+
+  for (let step = 0; step < maxSteps; step++) {
+    const observation = await memory.observe()
+    const decision = await model.reason({ goal, observation, tools: tools.schema() })
+
+    if (decision.action === 'answer') {
+      return decision.payload
+    }
+
+    if (decision.action === 'tool_call') {
+      const result = await tools.execute(decision.payload)
+      await memory.store({ step, action: decision.payload, result })
+    }
+  }
+
+  throw new Error('Max steps exceeded')
+}
+```
+
+In practice, each of these lines expands into substantial subsystems. The `memory.observe()` call might involve vector search, graph traversal, and context-window compression. The `tools.execute()` call might run in a sandboxed container with network isolation.
+
+## Summary
+
+- The four pillars are the reasoning core, tool registry, memory layer, and orchestration layer.
+- The reasoning core benefits from structured output and model cascading.
+- The tool registry must balance flexibility with security and observability.
+- Memory has three time-scales: working, short-term, and long-term.
+- The orchestration layer defines the loop pattern and enforces safety limits.
