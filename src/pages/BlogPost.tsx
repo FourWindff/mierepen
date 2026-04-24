@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { getPostBySlug, type BlogPost as BlogPostType } from '../lib/blog'
@@ -8,9 +8,12 @@ import { mdxComponents } from '../components/mdx'
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>()
+  const location = useLocation()
   const [post, setPost] = useState<BlogPostType | null>(null)
   const [loadedSlug, setLoadedSlug] = useState<string | null>(null)
   const { theme, toggleTheme } = useTheme()
+
+  const fromArchive = location.state?.from === 'archive' || document.referrer.includes('/archive')
 
   useEffect(() => {
     if (!slug) return
@@ -58,11 +61,11 @@ export default function BlogPost() {
           </Link>
           <div className="flex items-center gap-8">
             <Link
-              to="/archive"
+              to={fromArchive ? '/archive' : '/'}
               className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
             >
               <ArrowLeft size={16} />
-              Archive
+              {fromArchive ? 'Archive' : 'Home'}
             </Link>
             <button
               onClick={toggleTheme}

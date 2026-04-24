@@ -6,7 +6,7 @@
 import { motion } from "motion/react";
 import { useState, useEffect, useRef } from "react";
 import { Routes, Route, Link } from "react-router-dom";
-import { Search, Menu, Code, AtSign, Mail, ArrowUpRight, User, Sun, Moon } from "lucide-react";
+import { Menu, ArrowUpRight, User, Sun, Moon } from "lucide-react";
 import { getAllPosts } from "./lib/blog";
 import { getAllTutorials } from "./lib/docs";
 import { formatArchiveDate } from "./lib/content";
@@ -162,13 +162,19 @@ function Home() {
         <nav className="relative z-10 border-b border-black/5 dark:border-white/5">
           <div className="max-w-7xl mx-auto flex items-center justify-between px-12 py-6">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-black uppercase tracking-tighter mix-blend-difference">Cyber.Tides</h1>
+              <h1 className="text-xl font-black uppercase tracking-tighter mix-blend-difference">Mierepen</h1>
             </div>
 
             <div className="hidden md:flex items-center gap-12">
               <NavItem label="Archive" to="/archive" />
-              <NavItem label="About" to="/" />
-              <NavItem label="Connect" to="/" />
+              <a
+                href="https://github.com/FourWindff"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
+              >
+                Github
+              </a>
               <button
                 onClick={toggleTheme}
                 className="p-2 text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
@@ -194,7 +200,7 @@ function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-[120px] font-black uppercase tracking-tighter leading-[0.85] mix-blend-difference"
             >
-              CYBER<br />TIDES
+              MIEREPEN
             </motion.h2>
           </div>
         </header>
@@ -310,59 +316,6 @@ function Home() {
           ) : null}
         </section>
 
-        <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-black/10 dark:border-white/10">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-black/40 dark:text-white/40 mb-16 font-bold text-center">
-            [ 03 // ARCHIVE_REGISTRY ]
-          </h3>
-          <div className="space-y-4">
-            {posts.slice(0, 5).map((post, i) => (
-              <Link key={post.slug} to={`/blog/${post.slug}`} className="flex items-center justify-between p-6 border border-black/5 dark:border-white/5 hover:border-black/40 dark:hover:border-white/40 transition-colors group">
-                <div className="flex items-center gap-8">
-                  <span className="font-mono text-[10px] text-black/20 dark:text-white/20">#{122 - i}</span>
-                  <span className="text-lg font-bold group-hover:translate-x-2 transition-transform">{post.title}</span>
-                </div>
-                <span className="font-mono text-[10px] text-black/20 dark:text-white/20">{formatArchiveDate(post.date)}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-black/10 dark:border-white/10 grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <aside className="space-y-12">
-            <section>
-              <h4 className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50 mb-6 font-bold">
-                Search_Registry
-              </h4>
-              <div className="relative border-b border-black/20 dark:border-white/20 focus-within:border-black dark:focus-within:border-white transition-colors">
-                <input
-                  type="text"
-                  placeholder="QUERY_DATABASE..."
-                  className="w-full bg-transparent py-4 font-mono text-sm focus:outline-none text-black dark:text-white placeholder:text-neutral-400"
-                />
-                <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 text-black dark:text-white" />
-              </div>
-            </section>
-          </aside>
-
-          <section className="bg-black/5 dark:bg-white/5 p-12">
-            <h4 className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50 mb-6 font-bold">
-              Newsletter_Sub
-            </h4>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-8 leading-relaxed max-w-sm">
-              Keep the data flowing. Sub for laboratory updates.
-            </p>
-            <div className="space-y-4">
-              <input
-                type="email"
-                placeholder="USER@DOMAIN.TLD"
-                className="w-full bg-transparent border-b border-black/20 dark:border-white/20 py-4 font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors text-black dark:text-white placeholder:text-neutral-400"
-              />
-              <button className="w-full bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs py-4 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors tracking-[0.2em]">
-                Initialize_Sub
-              </button>
-            </div>
-          </section>
-        </section>
       </main>
 
       <footer className="px-12 py-10 border-t border-black/10 dark:border-white/10">
@@ -371,14 +324,17 @@ function Home() {
             <span className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">System Status: Optimal</span>
           </div>
 
-          <div className="flex gap-8">
-            <a href="#" className="p-2 text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"><Code size={20} /></a>
-            <a href="#" className="p-2 text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"><AtSign size={20} /></a>
-            <a href="#" className="p-2 text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"><Mail size={20} /></a>
-          </div>
+          <a
+            href="https://github.com/FourWindff"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity"
+          >
+            Github
+          </a>
 
           <p className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">
-            &copy; 2024 CYBER_TIDES BLOG
+            &copy; 2024 MIEREPEN BLOG
           </p>
         </div>
       </footer>

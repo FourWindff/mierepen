@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useLocation } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { getTutorialBySlug, type Tutorial } from '../lib/docs'
@@ -13,9 +13,12 @@ export default function DocsTutorial() {
     tutorialSlug: string
     chapterSlug?: string
   }>()
+  const location = useLocation()
   const [tutorial, setTutorial] = useState<Tutorial | null>(null)
   const [loadedSlug, setLoadedSlug] = useState<string | null>(null)
   const { theme, toggleTheme } = useTheme()
+
+  const fromArchive = location.state?.from === 'archive' || document.referrer.includes('/archive')
 
   useEffect(() => {
     if (!tutorialSlug) return
@@ -75,11 +78,11 @@ export default function DocsTutorial() {
           </Link>
           <div className="flex items-center gap-8">
             <Link
-              to="/archive"
+              to={fromArchive ? '/archive' : '/'}
               className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
             >
               <ArrowLeft size={16} />
-              Archive
+              {fromArchive ? 'Archive' : 'Home'}
             </Link>
             <button
               onClick={toggleTheme}

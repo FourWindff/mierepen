@@ -97,6 +97,7 @@ export default function Archive() {
             <Link
               key={`${entry.kind}-${entry.slug}`}
               to={entry.href}
+              state={{ from: 'archive' }}
               className="flex items-center justify-between p-6 border border-black/5 dark:border-white/5 hover:border-black/40 dark:hover:border-white/40 transition-colors group"
             >
               <div className="flex items-center gap-8 min-w-0">
