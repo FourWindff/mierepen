@@ -5,7 +5,7 @@
 
 import { motion } from "motion/react";
 import { useState, useEffect, useRef } from "react";
-import { Routes, Route, Link } from "react-router-dom";
+import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { Menu, ArrowUpRight, User, Sun, Moon } from "lucide-react";
 import { getAllPosts } from "./lib/blog";
 import { getAllTutorials } from "./lib/docs";
@@ -272,6 +272,7 @@ function Home() {
           <div className="mt-16 text-center">
             <Link
               to="/archive"
+              state={{ filter: 'blog' }}
               className="inline-block bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs py-4 px-8 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors tracking-[0.2em]"
             >
               More
@@ -308,6 +309,7 @@ function Home() {
             <div className="mt-16 text-center">
               <Link
                 to="/archive"
+                state={{ filter: 'docs' }}
                 className="inline-block bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs py-4 px-8 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors tracking-[0.2em]"
               >
                 More
@@ -342,16 +344,29 @@ function Home() {
   );
 }
 
+// --- Scroll to top on route change ---
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 // --- Main App Component ---
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/blog/:slug" element={<BlogPost />} />
-      <Route path="/docs/:tutorialSlug" element={<DocsTutorial />} />
-      <Route path="/docs/:tutorialSlug/:chapterSlug" element={<DocsTutorial />} />
-      <Route path="/archive" element={<Archive />} />
-    </Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/blog/:slug" element={<BlogPost />} />
+        <Route path="/docs/:tutorialSlug" element={<DocsTutorial />} />
+        <Route path="/docs/:tutorialSlug/:chapterSlug" element={<DocsTutorial />} />
+        <Route path="/archive" element={<Archive />} />
+      </Routes>
+    </>
   );
 }

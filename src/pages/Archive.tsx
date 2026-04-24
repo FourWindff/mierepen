@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -8,8 +8,11 @@ import { useTheme } from '../lib/useTheme'
 const ARCHIVE_FILTER_STORAGE_KEY = 'archive-filter'
 
 export default function Archive() {
+  const location = useLocation()
   const entries = getArchiveEntries()
   const [activeFilter, setActiveFilter] = useState<'blog' | 'docs'>(() => {
+    const stateFilter = (location.state as { filter?: 'blog' | 'docs' } | null)?.filter
+    if (stateFilter) return stateFilter
     const storedFilter = localStorage.getItem(ARCHIVE_FILTER_STORAGE_KEY)
     return storedFilter === 'docs' ? 'docs' : 'blog'
   })
