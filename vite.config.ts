@@ -203,6 +203,17 @@ function docsIndexPlugin() {
   }
 }
 
+function spaRedirectsPlugin() {
+  return {
+    name: 'spa-redirects',
+    closeBundle() {
+      const redirectsPath = path.resolve(configDir, 'dist', '_redirects')
+      fs.writeFileSync(redirectsPath, '/* /index.html 200\n')
+      console.log('[spa-redirects] Generated _redirects for SPA routing')
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   server: {
@@ -215,5 +226,6 @@ export default defineConfig({
     { enforce: 'pre', ...mdx({ remarkPlugins: [remarkGfm] }) },
     react(),
     tailwindcss(),
+    spaRedirectsPlugin(),
   ],
 })
