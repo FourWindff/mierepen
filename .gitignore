@@ -24,6 +24,8 @@ dist-ssr
 *.sw?
 
 .claude
+.gemini
+.codex
 .playwright-mcp
 openspec
-.worktrees/
+.worktrees
