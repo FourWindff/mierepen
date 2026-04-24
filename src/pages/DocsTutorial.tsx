@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams, useLocation } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { getTutorialBySlug, type Tutorial } from '../lib/docs'
 import { formatArchiveDate } from '../lib/content'
-import { useTheme } from '../lib/useTheme'
 import { mdxComponents } from '../components/mdx'
+import Header from '../components/Header'
 import TableOfContents from '../components/TableOfContents'
 
 export default function DocsTutorial() {
@@ -13,12 +12,8 @@ export default function DocsTutorial() {
     tutorialSlug: string
     chapterSlug?: string
   }>()
-  const location = useLocation()
   const [tutorial, setTutorial] = useState<Tutorial | null>(null)
   const [loadedSlug, setLoadedSlug] = useState<string | null>(null)
-  const { theme, toggleTheme } = useTheme()
-
-  const fromArchive = location.state?.from === 'archive' || document.referrer.includes('/archive')
 
   useEffect(() => {
     if (!tutorialSlug) return
@@ -68,32 +63,7 @@ export default function DocsTutorial() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
-      <nav className="border-b border-black/10 dark:border-white/10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-12 py-6">
-          <Link
-            to="/"
-            className="text-xl font-black uppercase tracking-tighter text-black dark:text-white hover:opacity-70 transition-opacity"
-          >
-            Cyber.Tides
-          </Link>
-          <div className="flex items-center gap-8">
-            <Link
-              to={fromArchive ? '/archive' : '/'}
-              className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
-            >
-              <ArrowLeft size={16} />
-              {fromArchive ? 'Archive' : 'Home'}
-            </Link>
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-black dark:text-white hover:opacity-70 transition-opacity"
-              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <Header />
 
       <div className="relative px-12 pt-10 pb-32 xl:px-[260px] 2xl:px-[340px]">
         <section className="mx-auto">

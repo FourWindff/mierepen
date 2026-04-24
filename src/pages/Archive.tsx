@@ -1,9 +1,9 @@
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { formatArchiveDate, getArchiveEntries } from '../lib/content'
-import { useTheme } from '../lib/useTheme'
+import Header from '../components/Header'
+import Footer from '../components/Footer'
 
 const ARCHIVE_FILTER_STORAGE_KEY = 'archive-filter'
 
@@ -16,7 +16,6 @@ export default function Archive() {
     const storedFilter = localStorage.getItem(ARCHIVE_FILTER_STORAGE_KEY)
     return storedFilter === 'docs' ? 'docs' : 'blog'
   })
-  const { theme, toggleTheme } = useTheme()
   const filteredEntries = entries.filter((entry) => entry.kind === activeFilter)
 
   useEffect(() => {
@@ -25,33 +24,7 @@ export default function Archive() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-bg-primary-dark text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
-      {/* Navigation */}
-      <nav className="border-b border-black/10 dark:border-white/10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-12 py-6">
-          <Link
-            to="/"
-            className="text-xl font-black uppercase tracking-tighter text-black dark:text-white hover:opacity-70 transition-opacity"
-          >
-            Cyber.Tides
-          </Link>
-          <div className="flex items-center gap-8">
-            <Link
-              to="/"
-              className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
-            >
-              <ArrowLeft size={16} />
-              Home
-            </Link>
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-black dark:text-white hover:opacity-70 transition-opacity"
-              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <Header backTo="/" backLabel="Home" />
 
       {/* Header */}
       <header className="max-w-7xl mx-auto px-12 pt-24 pb-12">
@@ -129,19 +102,7 @@ export default function Archive() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="px-12 py-10 border-t border-black/10 dark:border-white/10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-4">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">
-              System Status: Optimal
-            </span>
-          </div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">
-            &copy; 2024 CYBER_TIDES BLOG
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
