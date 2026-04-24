@@ -108,7 +108,7 @@ const ASCIIWave = () => {
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 bg-gradient-to-b from-[#111] to-[#080808] font-mono text-[8px] sm:text-[10px] leading-tight overflow-hidden select-none"
+      className="absolute inset-0 bg-linear-to-b from-[#111] to-bg-primary-dark font-mono text-[8px] sm:text-[10px] leading-tight overflow-hidden select-none"
       aria-hidden="true"
     >
       <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-white/40 opacity-80">
@@ -123,8 +123,8 @@ const ASCIIWave = () => {
       <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-white/80 opacity-100">
         {generateASCII(0.18, 2, 2, 0.06)}
       </pre>
-      <div className="absolute inset-0 bg-gradient-to-r from-[#080808]/30 via-transparent to-[#080808]/30" />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#080808]/70" />
+      <div className="absolute inset-0 bg-linear-to-r from-bg-primary-dark/30 via-transparent to-bg-primary-dark/30" />
+      <div className="absolute inset-0 bg-linear-to-b from-transparent to-bg-primary-dark/70" />
     </div>
   );
 };
@@ -152,7 +152,7 @@ function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-white selection:text-black">
+    <div className="min-h-screen bg-bg-primary-dark text-white font-sans selection:bg-white selection:text-black">
       <div className="relative border-b border-white/10">
         <ASCIIWave />
 
@@ -182,7 +182,7 @@ function Home() {
             <motion.h2
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-[120px] font-black uppercase tracking-[-0.05em] leading-[0.85] mix-blend-difference"
+                className="text-[120px] font-black uppercase tracking-tighter leading-[0.85] mix-blend-difference"
             >
               CYBER<br />TIDES
             </motion.h2>
@@ -191,11 +191,11 @@ function Home() {
       </div>
 
       <main>
-        <section className="max-w-7xl mx-auto px-12 py-24 border-x border-white/5 bg-white/[0.02]">
+        <section className="max-w-7xl mx-auto px-12 py-24 border-x border-white/5 bg-white/2">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
             <div className="lg:col-span-4">
               <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-6 font-bold flex items-center gap-2">
-                <span className="w-4 h-[1px] bg-white/20"></span> IDENTITY_MODULE
+                <span className="w-4 h-px bg-white/20"></span> IDENTITY_MODULE
               </h3>
               <div className="w-32 h-32 bg-white/10 border border-white/20 flex items-center justify-center mb-6">
                 <User size={48} className="text-white/20" />
@@ -235,7 +235,7 @@ function Home() {
                   transition={{ delay: idx * 0.1 }}
                   className="pt-8 border-t border-white/20 hover:border-white transition-colors cursor-pointer group"
                 >
-                  <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 mb-6 font-bold">
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-white/50 mb-6 font-bold">
                     {idx + 1 < 10 ? `0${idx + 1}` : idx + 1} / {formatDate(post.date).toUpperCase()}
                   </div>
                   <h2 className="text-2xl font-bold leading-tight mb-4 group-hover:text-neutral-300 transition-colors">
@@ -263,7 +263,7 @@ function Home() {
           </div>
         </section>
 
-        <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-white/10 bg-white/[0.01]">
+        <section className="max-w-7xl mx-auto px-12 py-24 border-t border-x border-white/10 bg-white/1">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/40 mb-16 font-bold text-center">
             [ 02 // RECENT_LAB_PROJECTS ]
           </h3>
@@ -274,7 +274,7 @@ function Home() {
               { name: "Mono-Type", type: "Typography", desc: "A custom variable font for terminal enthusiasts." },
               { name: "Void-Space", type: "Social Hub", desc: "A minimal, encrypted community platform." }
             ].map((proj, idx) => (
-              <div key={idx} className="bg-[#080808] p-12 hover:bg-white/[0.05] transition-colors group relative">
+              <div key={idx} className="bg-bg-primary-dark p-12 hover:bg-white/5 transition-colors group relative">
                 <div className="flex justify-between items-start mb-12">
                   <span className="font-mono text-[10px] text-white/30">{proj.type.toUpperCase()}</span>
                   <ArrowUpRight size={20} className="text-white/20 group-hover:text-white transition-colors group-hover:translate-x-1 group-hover:-translate-y-1" />

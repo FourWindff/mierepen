@@ -12,7 +12,7 @@ export default function Archive() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-white selection:text-black">
+    <div className="min-h-screen bg-bg-primary-dark text-white font-sans selection:bg-white selection:text-black">
       {/* Navigation */}
       <nav className="border-b border-white/10">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-12 py-6">

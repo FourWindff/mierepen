@@ -30,9 +30,9 @@ export default function CodeBlock({ children, className }: CodeBlockProps) {
   if (lines[lines.length - 1] === '') lines.pop()
 
   return (
-    <div className="bg-black/[0.02] dark:bg-white/[0.02] border border-black/10 dark:border-white/10 rounded-none mb-6 overflow-hidden">
+    <div className="bg-black/2 dark:bg-white/2 border border-black/10 dark:border-white/10 rounded-none mb-6 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/2">
         {language ? (
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/50 dark:text-white/50 font-bold">
             {language}

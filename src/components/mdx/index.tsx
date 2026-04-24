@@ -46,7 +46,7 @@ export const mdxComponents = {
     </td>
   ),
   tr: (props: React.ComponentProps<'tr'>) => (
-    <tr className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">{props.children}</tr>
+    <tr className="hover:bg-black/2 dark:hover:bg-white/2 transition-colors">{props.children}</tr>
   ),
   // Custom components
   Callout,
