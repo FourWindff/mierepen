@@ -8,6 +8,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import matter from 'gray-matter'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 const virtualBlogIndexId = 'virtual:blog-index'
 const resolvedVirtualBlogIndexId = '\0' + virtualBlogIndexId
 const virtualDocsIndexId = 'virtual:docs-index'
@@ -23,7 +25,7 @@ function stripFrontmatterPlugin() {
       const cleaned = code.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
       return cleaned
     },
-  }
+  };
 }
 
 function blogIndexPlugin() {
@@ -42,7 +44,7 @@ function blogIndexPlugin() {
 
       const dirs = fs.readdirSync(blogDir).filter((d) => {
         const full = path.join(blogDir, d)
-        return fs.statSync(full).isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(d)
+        return fs.statSync(full).isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(d);
       })
 
       const posts: Array<{
@@ -96,7 +98,7 @@ function blogIndexPlugin() {
 
       return lines.join('\n')
     },
-  }
+  };
 }
 
 function toImportPath(filePath: string) {
@@ -170,7 +172,7 @@ function docsIndexPlugin() {
               sidebarPosition,
               excerpt: String(data.excerpt ?? ''),
               importPath: toImportPath(`../../docs/${slug}/${fileName}`),
-            }
+            };
           })
           .filter((chapter): chapter is NonNullable<typeof chapter> => chapter !== null)
           .sort((a, b) => a.sidebarPosition - b.sidebarPosition)
@@ -200,7 +202,7 @@ function docsIndexPlugin() {
 
       return lines.join('\n')
     },
-  }
+  };
 }
 
 // https://vite.dev/config/
@@ -215,5 +217,6 @@ export default defineConfig({
     { enforce: 'pre', ...mdx({ remarkPlugins: [remarkGfm] }) },
     react(),
     tailwindcss(),
+    cloudflare()
   ],
 })
