@@ -1,3 +1,4 @@
+import type { ComponentType, ReactNode } from 'react'
 import { posts, postMap } from 'virtual:blog-index'
 
 export interface BlogMeta {
@@ -10,10 +11,15 @@ export interface BlogMeta {
   excerpt: string
 }
 
+export interface MDXComponentProps {
+  components?: Record<string, ComponentType<any>>
+  children?: ReactNode
+}
+
 export interface BlogPost {
   meta: BlogMeta
   content: string
-  Component: React.ComponentType
+  Component: ComponentType<MDXComponentProps>
 }
 
 // Dynamic import of MDX React components
@@ -30,7 +36,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   const loader = mdxModules[`../../blog/${slug}/index.mdx`]
   if (!loader) return null
 
-  const mod = (await loader()) as { default: React.ComponentType }
+  const mod = (await loader()) as { default: ComponentType<MDXComponentProps> }
 
   return {
     meta,

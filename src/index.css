@@ -1,11 +1,43 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-bg-primary: #f5f5f5;
+  --color-bg-primary-dark: #080808;
+  --color-surface: rgba(0, 0, 0, 0.01);
+  --color-surface-dark: rgba(255, 255, 255, 0.01);
+  --color-surface-hover: rgba(0, 0, 0, 0.05);
+  --color-surface-hover-dark: rgba(255, 255, 255, 0.05);
+  --color-text-primary: black;
+  --color-text-primary-dark: white;
+  --color-text-secondary: #525252;
+  --color-text-secondary-dark: #a3a3a3;
+  --color-text-muted: rgba(0, 0, 0, 0.4);
+  --color-text-muted-dark: rgba(255, 255, 255, 0.4);
+  --color-border-subtle: rgba(0, 0, 0, 0.05);
+  --color-border-subtle-dark: rgba(255, 255, 255, 0.05);
+  --color-border-default: rgba(0, 0, 0, 0.1);
+  --color-border-default-dark: rgba(255, 255, 255, 0.1);
+  --color-border-hover: rgba(0, 0, 0, 0.2);
+  --color-border-hover-dark: rgba(255, 255, 255, 0.2);
+  --color-accent: #404040;
+  --color-accent-dark: #d4d4d4;
+}
+
+html {
+  @apply bg-[#f5f5f5] text-black;
+}
+html.dark {
+  @apply bg-[#080808] text-white;
 }
 
 body {
+  @apply bg-[#f5f5f5] text-black selection:bg-black selection:text-white;
+}
+.dark body {
   @apply bg-[#080808] text-white selection:bg-white selection:text-black;
 }
 
@@ -15,14 +47,23 @@ body {
 }
 
 ::-webkit-scrollbar-track {
+  background: #f5f5f5;
+}
+.dark ::-webkit-scrollbar-track {
   background: #080808;
 }
 
 ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+.dark ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  background: #000000;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #ffffff;
 }
 
@@ -40,15 +81,24 @@ body {
 }
 
 .prose-custom p {
-  @apply text-neutral-400 leading-relaxed mb-6 text-base;
+  @apply text-neutral-600 leading-relaxed mb-6 text-base;
+}
+.dark .prose-custom p {
+  @apply text-neutral-400;
 }
 
 .prose-custom ul {
-  @apply list-disc list-inside text-neutral-400 mb-6 space-y-2;
+  @apply list-disc list-inside text-neutral-600 mb-6 space-y-2;
+}
+.dark .prose-custom ul {
+  @apply text-neutral-400;
 }
 
 .prose-custom ol {
-  @apply list-decimal list-inside text-neutral-400 mb-6 space-y-2;
+  @apply list-decimal list-inside text-neutral-600 mb-6 space-y-2;
+}
+.dark .prose-custom ol {
+  @apply text-neutral-400;
 }
 
 .prose-custom li {
@@ -56,15 +106,24 @@ body {
 }
 
 .prose-custom blockquote {
-  @apply border-l-2 border-white/20 pl-6 my-8 text-neutral-300 italic;
+  @apply border-l-2 border-black/20 pl-6 my-8 text-neutral-700 italic;
+}
+.dark .prose-custom blockquote {
+  @apply border-white/20 text-neutral-300;
 }
 
 .prose-custom pre {
-  @apply bg-white/5 border border-white/10 p-6 overflow-x-auto font-mono text-sm text-neutral-300 mb-6;
+  @apply bg-black/5 border border-black/10 p-6 overflow-x-auto font-mono text-sm text-neutral-700 mb-6;
+}
+.dark .prose-custom pre {
+  @apply bg-white/5 border-white/10 text-neutral-300;
 }
 
 .prose-custom code {
-  @apply font-mono text-sm bg-white/10 px-1.5 py-0.5 text-neutral-300;
+  @apply font-mono text-sm bg-black/10 px-1.5 py-0.5 text-neutral-700;
+}
+.dark .prose-custom code {
+  @apply bg-white/10 text-neutral-300;
 }
 
 .prose-custom pre code {
@@ -76,21 +135,36 @@ body {
 }
 
 .prose-custom th {
-  @apply border-b border-white/20 text-left py-3 px-4 font-bold text-white uppercase tracking-widest text-[10px] font-mono;
+  @apply border-b border-black/20 text-left py-3 px-4 font-bold text-black uppercase tracking-widest text-[10px] font-mono;
+}
+.dark .prose-custom th {
+  @apply border-white/20 text-white;
 }
 
 .prose-custom td {
-  @apply border-b border-white/10 py-3 px-4 text-neutral-400;
+  @apply border-b border-black/10 py-3 px-4 text-neutral-600;
+}
+.dark .prose-custom td {
+  @apply border-white/10 text-neutral-400;
 }
 
 .prose-custom hr {
-  @apply border-white/10 my-12;
+  @apply border-black/10 my-12;
+}
+.dark .prose-custom hr {
+  @apply border-white/10;
 }
 
 .prose-custom a {
-  @apply text-white underline underline-offset-4 hover:text-neutral-300 transition-colors;
+  @apply text-black underline underline-offset-4 hover:text-neutral-700 transition-colors;
+}
+.dark .prose-custom a {
+  @apply text-white hover:text-neutral-300;
 }
 
 .prose-custom strong {
-  @apply text-white font-bold;
+  @apply text-black font-bold;
+}
+.dark .prose-custom strong {
+  @apply text-white;
 }

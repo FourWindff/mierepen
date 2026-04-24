@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Sun, Moon } from 'lucide-react'
 import { getPostBySlug, type BlogPost as BlogPostType } from '../lib/blog'
+import { useTheme } from '../lib/theme'
+import { mdxComponents } from '../components/mdx'
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>()
   const [post, setPost] = useState<BlogPostType | null>(null)
   const [loading, setLoading] = useState(true)
+  const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     if (!slug) return
@@ -19,7 +22,7 @@ export default function BlogPost() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#080808] text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
+      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Loading Data...
       </div>
     )
@@ -27,7 +30,7 @@ export default function BlogPost() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-[#080808] text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
+      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Post Not Found
       </div>
     )
@@ -36,23 +39,32 @@ export default function BlogPost() {
   const MdxContent = post.Component
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-white selection:text-black">
+    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
       {/* Navigation */}
-      <nav className="border-b border-white/10">
+      <nav className="border-b border-black/10 dark:border-white/10">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-12 py-6">
           <Link
             to="/"
-            className="text-xl font-black uppercase tracking-tighter mix-blend-difference hover:opacity-70 transition-opacity"
+            className="text-xl font-black uppercase tracking-tighter text-black dark:text-white hover:opacity-70 transition-opacity"
           >
             Cyber.Tides
           </Link>
-          <Link
-            to="/"
-            className="text-sm uppercase tracking-[0.2em] font-bold text-white mix-blend-difference hover:opacity-70 transition-opacity flex items-center gap-2"
-          >
-            <ArrowLeft size={16} />
-            Archive
-          </Link>
+          <div className="flex items-center gap-8">
+            <Link
+              to="/"
+              className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
+            >
+              <ArrowLeft size={16} />
+              Archive
+            </Link>
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-black dark:text-white hover:opacity-70 transition-opacity"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -63,14 +75,14 @@ export default function BlogPost() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-6 font-bold flex items-center gap-2">
-            <span className="w-4 h-[1px] bg-white/20"></span>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-6 font-bold flex items-center gap-2">
+            <span className="w-4 h-[1px] bg-black/20 dark:bg-white/20"></span>
             {post.meta.category}
           </div>
           <h1 className="text-5xl md:text-6xl font-black uppercase tracking-tight leading-[0.9] mb-8">
             {post.meta.title}
           </h1>
-          <div className="flex items-center gap-6 text-[10px] font-mono text-white/40 uppercase tracking-widest font-bold">
+          <div className="flex items-center gap-6 text-[10px] font-mono text-black/40 dark:text-white/40 uppercase tracking-widest font-bold">
             <span>{post.meta.author}</span>
             <span>/</span>
             <span>{post.meta.date}</span>
@@ -88,19 +100,19 @@ export default function BlogPost() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="prose-custom"
         >
-          <MdxContent />
+          <MdxContent components={mdxComponents} />
         </motion.div>
       </article>
 
       {/* Footer */}
-      <footer className="px-12 py-10 border-t border-white/10">
+      <footer className="px-12 py-10 border-t border-black/10 dark:border-white/10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-white/50">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">
               System Status: Optimal
             </span>
           </div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-white/50">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">
             &copy; 2024 CYBER_TIDES BLOG
           </p>
         </div>
