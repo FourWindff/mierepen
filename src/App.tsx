@@ -165,6 +165,10 @@ function Home() {
   const tutorials = getAllTutorials();
   const latestTutorials = tutorials.slice(0, 4);
   const hasMoreTutorials = tutorials.length > latestTutorials.length;
+  const backdropGradient =
+    theme === "dark"
+      ? "linear-gradient(90deg, rgba(0,0,0,0.46) 0%, rgba(0,0,0,0.3) 32%, rgba(0,0,0,0.16) 68%, rgba(0,0,0,0.08) 100%)"
+      : "linear-gradient(90deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.12) 32%, rgba(0,0,0,0.07) 68%, rgba(0,0,0,0.04) 100%)";
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-bg-primary-dark text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
@@ -219,65 +223,72 @@ function Home() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="md:hidden fixed inset-0 z-50 flex"
+              className="md:hidden fixed inset-0 z-50 overflow-hidden"
             >
-              <motion.aside
-                initial={{ x: '-100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                className="w-[min(82vw,22rem)] h-full bg-[#f5f5f5] dark:bg-[#080808] border-r border-black/10 dark:border-white/10 shadow-[18px_0_48px_rgba(0,0,0,0.18)] dark:shadow-[18px_0_48px_rgba(0,0,0,0.55)]"
-              >
-                <div className="flex items-center gap-3 px-4 sm:px-6 py-6 border-b border-black/10 dark:border-white/10">
-                  <button
-                    className="p-4 text-black dark:text-white"
-                    onClick={() => setIsMenuOpen(false)}
-                    aria-label="Close menu"
-                  >
-                    <X size={24} />
-                  </button>
-                  <div className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white">
-                    <LogoMark className="block h-9 w-9 shrink-0" />
-                    Mierepen
-                  </div>
-                </div>
-                <div className="flex flex-col px-4 sm:px-6 py-8 gap-8">
-                  <Link
-                    to="/archive"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
-                  >
-                    Archive
-                  </Link>
-                  <a
-                  href="https://github.com/FourWindff"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
-                >
-                  <GitHubMark size={18} />
-                  Github
-                </a>
-                  <button
-                    onClick={() => {
-                      toggleTheme()
-                      setIsMenuOpen(false)
-                    }}
-                    className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white text-left"
-                    aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                  >
-                    {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                    {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                  </button>
-                </div>
-              </motion.aside>
-              <button
+              <motion.button
                 type="button"
-                className="flex-1 bg-black/5 dark:bg-black/20 backdrop-blur-[1px]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="absolute inset-0 backdrop-blur-[1px]"
+                style={{ background: backdropGradient }}
                 onClick={() => setIsMenuOpen(false)}
                 aria-label="Close menu"
               />
+              <motion.div
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ duration: 0.28, ease: 'easeOut' }}
+                className="relative z-10 h-full w-[min(82vw,22rem)]"
+              >
+                <aside className="h-full w-full bg-[#f5f5f5] dark:bg-[#080808] border-r border-black/10 dark:border-white/10">
+                  <div className="flex items-center gap-3 px-4 sm:px-6 py-6 border-b border-black/10 dark:border-white/10">
+                    <button
+                      className="p-4 text-black dark:text-white"
+                      onClick={() => setIsMenuOpen(false)}
+                      aria-label="Close menu"
+                    >
+                      <X size={24} />
+                    </button>
+                    <div className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white">
+                      <LogoMark className="block h-9 w-9 shrink-0" />
+                      Mierepen
+                    </div>
+                  </div>
+                  <div className="flex flex-col px-4 sm:px-6 py-8 gap-8">
+                    <Link
+                      to="/archive"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
+                    >
+                      Archive
+                    </Link>
+                    <a
+                      href="https://github.com/FourWindff"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
+                    >
+                      <GitHubMark size={18} />
+                      Github
+                    </a>
+                    <button
+                      onClick={() => {
+                        toggleTheme()
+                        setIsMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white text-left"
+                      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                    >
+                      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    </button>
+                  </div>
+                </aside>
+              </motion.div>
             </motion.div>
           ) : null}
         </AnimatePresence>
