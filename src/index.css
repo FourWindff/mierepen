@@ -111,6 +111,16 @@ html.dark .theme-panel {
   background: var(--color-bg-primary-dark);
 }
 
+.theme-header-shell {
+  background: color-mix(in srgb, var(--color-bg-primary) 58%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+html.dark .theme-header-shell {
+  background: color-mix(in srgb, var(--color-bg-primary-dark) 72%, transparent);
+}
+
 .theme-surface {
   background: var(--color-surface);
 }

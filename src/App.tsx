@@ -15,6 +15,7 @@ import BlogPost from "./pages/BlogPost";
 import Archive from "./pages/Archive";
 import DocsTutorial from "./pages/DocsTutorial";
 import LogoMark from "./components/LogoMark";
+import AutoHideHeaderShell from "./components/AutoHideHeaderShell";
 
 // --- ASCII Wave Component ---
 
@@ -172,10 +173,12 @@ function Home() {
 
   return (
     <div className="theme-page min-h-screen font-sans">
-      <div className="theme-border relative border-b">
-        <ASCIIWave />
-
-        <nav className="theme-border-subtle relative z-10 border-b">
+      <AutoHideHeaderShell
+        freeze={isMenuOpen}
+        reserveSpace={false}
+        shellClassName="theme-header-shell theme-border-subtle border-b"
+      >
+        <nav className="relative z-10">
           <div className="flex items-center px-4 sm:px-6 xl:px-12 2xl:px-16 py-6">
             <button
               className="theme-text-primary mr-3 p-4 mix-blend-difference md:hidden"
@@ -210,9 +213,18 @@ function Home() {
                 {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
               </button>
             </div>
-
           </div>
         </nav>
+      </AutoHideHeaderShell>
+
+      <div
+        className="theme-border relative border-b"
+        style={{
+          paddingTop: 'var(--header-shell-height, 0px)',
+          paddingBottom: 'calc(var(--header-shell-height, 0px) * 2)',
+        }}
+      >
+        <ASCIIWave />
 
         {/* Mobile menu overlay (Home) */}
         <AnimatePresence>
