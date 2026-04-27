@@ -62,6 +62,9 @@ export default function BlogPost() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight leading-[0.9] mb-8">
             {post.meta.title}
           </h1>
+          <p className="theme-text-tertiary max-w-3xl text-sm sm:text-[15px] leading-relaxed mb-8">
+            {post.meta.excerpt}
+          </p>
           <div className="theme-text-muted flex items-center gap-6 text-[10px] font-mono uppercase tracking-widest font-bold">
             <span>{post.meta.author}</span>
             <span>/</span>
