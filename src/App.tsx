@@ -176,7 +176,7 @@ function Home() {
       <AutoHideHeaderShell
         freeze={isMenuOpen}
         reserveSpace={false}
-        shellClassName="theme-header-shell theme-border-subtle border-b"
+        shellClassName="theme-header-shell-home"
       >
         <nav className="relative z-10">
           <div className="flex items-center px-4 sm:px-6 xl:px-12 2xl:px-16 py-6">

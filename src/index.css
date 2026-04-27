@@ -121,6 +121,40 @@ html.dark .theme-header-shell {
   background: color-mix(in srgb, var(--color-bg-primary-dark) 72%, transparent);
 }
 
+.theme-header-shell-home {
+  position: relative;
+  background: color-mix(in srgb, var(--color-bg-primary) 52%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.theme-header-shell-home::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -36px;
+  height: 36px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-bg-primary) 28%, transparent) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+html.dark .theme-header-shell-home {
+  background: color-mix(in srgb, var(--color-bg-primary-dark) 66%, transparent);
+}
+
+html.dark .theme-header-shell-home::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-bg-primary-dark) 34%, transparent) 0%,
+    transparent 100%
+  );
+}
+
 .theme-surface {
   background: var(--color-surface);
 }
