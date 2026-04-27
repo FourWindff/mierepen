@@ -28,7 +28,7 @@ export default function BlogPost() {
 
   if (slug && loadedSlug !== slug) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
+      <div className="theme-page min-h-screen flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Loading Data...
       </div>
     )
@@ -36,7 +36,7 @@ export default function BlogPost() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
+      <div className="theme-page min-h-screen flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Post Not Found
       </div>
     )
@@ -45,7 +45,7 @@ export default function BlogPost() {
   const MdxContent = post.Component
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
+    <div className="theme-page min-h-screen font-sans">
       <Header />
 
       {/* Article Header */}
@@ -55,14 +55,14 @@ export default function BlogPost() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-6 font-bold flex items-center gap-2">
-            <span className="w-4 h-[1px] bg-black/20 dark:bg-white/20"></span>
+          <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] mb-6 font-bold flex items-center gap-2">
+            <span className="theme-rule w-4 h-[1px]"></span>
             {post.meta.category}
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight leading-[0.9] mb-8">
             {post.meta.title}
           </h1>
-          <div className="flex items-center gap-6 text-[10px] font-mono text-black/40 dark:text-white/40 uppercase tracking-widest font-bold">
+          <div className="theme-text-muted flex items-center gap-6 text-[10px] font-mono uppercase tracking-widest font-bold">
             <span>{post.meta.author}</span>
             <span>/</span>
             <span>{post.meta.date}</span>

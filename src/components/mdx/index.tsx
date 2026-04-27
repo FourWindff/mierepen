@@ -33,20 +33,20 @@ export const mdxComponents = {
   blockquote: Blockquote,
   table: Table,
   thead: (props: React.ComponentProps<'thead'>) => (
-    <thead className="border-b border-black/20 dark:border-white/20">{props.children}</thead>
+    <thead className="theme-border-strong border-b">{props.children}</thead>
   ),
   th: (props: React.ComponentProps<'th'>) => (
-    <th className="text-left py-3 px-4 font-bold text-black dark:text-white uppercase tracking-widest text-[10px] font-mono">
+    <th className="theme-text-primary text-left py-3 px-4 font-bold uppercase tracking-widest text-[10px] font-mono">
       {props.children}
     </th>
   ),
   td: (props: React.ComponentProps<'td'>) => (
-    <td className="border-b border-black/10 dark:border-white/10 py-3 px-4 text-neutral-600 dark:text-neutral-400">
+    <td className="theme-border theme-text-secondary border-b py-3 px-4">
       {props.children}
     </td>
   ),
   tr: (props: React.ComponentProps<'tr'>) => (
-    <tr className="hover:bg-black/2 dark:hover:bg-white/2 transition-colors">{props.children}</tr>
+    <tr className="theme-surface-hover">{props.children}</tr>
   ),
   // Custom components
   Callout,

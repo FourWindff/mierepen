@@ -175,7 +175,7 @@ export default function TableOfContents({ containerSelector = 'article' }: Table
       aria-label="Table of contents"
     >
       <div className="sticky top-10">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.3em] text-black/40 dark:text-white/40 font-bold mb-4">
+        <h2 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] font-bold mb-4">
           On This Page
         </h2>
         <ul className="space-y-1">
@@ -188,15 +188,15 @@ export default function TableOfContents({ containerSelector = 'article' }: Table
                 {isActive ? (
                   <span
                     aria-hidden="true"
-                    className="absolute left-0 top-[0.85rem] h-px w-3 bg-black dark:bg-white"
+                    className="theme-rule absolute left-0 top-[0.85rem] h-px w-3"
                   />
                 ) : null}
                 <button
                   onClick={() => handleClick(heading.id)}
-                  className={`block w-full text-left text-xs leading-relaxed py-1 pr-2 break-words transition-colors hover:text-black dark:hover:text-white ${
+                  className={`theme-text-hover-primary block w-full text-left text-xs leading-relaxed py-1 pr-2 break-words ${
                     isActive
-                      ? 'text-black dark:text-white'
-                      : 'text-black/50 dark:text-white/50'
+                      ? 'theme-text-primary'
+                      : 'theme-text-tertiary'
                   }`}
                   style={{ paddingLeft: `${indent + 1}rem` }}
                 >

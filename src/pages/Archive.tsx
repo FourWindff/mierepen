@@ -23,7 +23,7 @@ export default function Archive() {
   }, [activeFilter])
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-bg-primary-dark text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
+    <div className="theme-page min-h-screen font-sans">
       <Header backTo="/" backLabel="Home" />
 
       {/* Header */}
@@ -36,7 +36,7 @@ export default function Archive() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight leading-[0.9] mb-8">
             Archive
           </h1>
-          <p className="text-neutral-600 dark:text-neutral-400 text-sm font-mono max-w-xl">
+          <p className="theme-text-secondary text-sm font-mono max-w-xl">
             A complete registry of blog posts and tutorial docs. {entries.length} entries found.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -45,8 +45,8 @@ export default function Archive() {
               onClick={() => setActiveFilter('blog')}
               className={`px-5 py-3 border font-mono text-[10px] uppercase tracking-[0.25em] transition-colors ${
                 activeFilter === 'blog'
-                  ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
-                  : 'border-black/15 dark:border-white/15 hover:border-black/40 dark:hover:border-white/40'
+                  ? 'theme-button-toggle-active'
+                  : 'theme-button-toggle-idle'
               }`}
             >
               Blog
@@ -56,8 +56,8 @@ export default function Archive() {
               onClick={() => setActiveFilter('docs')}
               className={`px-5 py-3 border font-mono text-[10px] uppercase tracking-[0.25em] transition-colors ${
                 activeFilter === 'docs'
-                  ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
-                  : 'border-black/15 dark:border-white/15 hover:border-black/40 dark:hover:border-white/40'
+                  ? 'theme-button-toggle-active'
+                  : 'theme-button-toggle-idle'
               }`}
             >
               Docs
@@ -74,27 +74,27 @@ export default function Archive() {
               key={`${entry.kind}-${entry.slug}`}
               to={entry.href}
               state={{ from: 'archive' }}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-4 sm:p-6 border border-black/5 dark:border-white/5 hover:border-black/40 dark:hover:border-white/40 transition-colors group"
+              className="theme-border-subtle theme-border-hover flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-4 sm:p-6 border group"
             >
               <div className="flex items-start sm:items-center gap-4 sm:gap-8 min-w-0">
-                <span className="font-mono text-[10px] text-black/20 dark:text-white/20 shrink-0 mt-1 sm:mt-0">
+                <span className="theme-text-faint font-mono text-[10px] shrink-0 mt-1 sm:mt-0">
                   #{filteredEntries.length - idx}
                 </span>
                 <div className="min-w-0">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-2">
+                  <div className="theme-text-dim font-mono text-[10px] uppercase tracking-[0.2em] mb-2">
                     {entry.typeLabel}
                   </div>
                   <span className="text-base sm:text-lg font-bold sm:group-hover:translate-x-2 transition-transform block break-words">
                     {entry.title}
                   </span>
                   {'summary' in entry ? (
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 max-w-xl break-words">
+                    <p className="theme-text-tertiary text-xs mt-2 max-w-xl break-words">
                       {entry.summary}
                     </p>
                   ) : null}
                 </div>
               </div>
-              <span className="font-mono text-[10px] text-black/20 dark:text-white/20 shrink-0 sm:ml-4">
+              <span className="theme-text-faint font-mono text-[10px] shrink-0 sm:ml-4">
                 {formatArchiveDate(entry.date)}
               </span>
             </Link>

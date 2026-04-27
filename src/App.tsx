@@ -113,23 +113,23 @@ const ASCIIWave = () => {
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 bg-linear-to-b from-[#e5e5e5] to-[#f5f5f5] dark:from-[#111] dark:to-bg-primary-dark font-mono text-[10px] leading-tight overflow-hidden select-none"
+      className="absolute inset-0 bg-linear-to-b from-[#e7e1d7] to-bg-primary dark:from-[#151513] dark:to-bg-primary-dark font-mono text-[10px] leading-tight overflow-hidden select-none"
       aria-hidden="true"
     >
-      <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-black/40 dark:text-white/40 opacity-80">
+      <pre className="theme-text-muted absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent opacity-80">
         {generateBeach()}
       </pre>
-      <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-black/30 dark:text-white/30 opacity-50">
+      <pre className="theme-text-dim absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent opacity-50">
         {generateASCII(0.08, 12, 4, 0.02)}
       </pre>
-      <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-black/50 dark:text-white/50 opacity-70">
+      <pre className="theme-text-muted absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent opacity-70">
         {generateASCII(0.12, 6, 3, 0.04)}
       </pre>
-      <pre className="absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent text-black/80 dark:text-white/80 opacity-100">
+      <pre className="theme-text-soft absolute inset-0 w-full h-full whitespace-pre overflow-hidden bg-transparent opacity-100">
         {generateASCII(0.18, 2, 2, 0.06)}
       </pre>
-      <div className="absolute inset-0 bg-linear-to-r from-[#f5f5f5]/30 via-transparent to-[#f5f5f5]/30 dark:from-bg-primary-dark/30 dark:to-bg-primary-dark/30" />
-      <div className="absolute inset-0 bg-linear-to-b from-transparent to-[#f5f5f5]/70 dark:to-bg-primary-dark/70" />
+      <div className="absolute inset-0 bg-linear-to-r from-bg-primary/30 via-transparent to-bg-primary/30 dark:from-bg-primary-dark/30 dark:to-bg-primary-dark/30" />
+      <div className="absolute inset-0 bg-linear-to-b from-transparent to-bg-primary/70 dark:to-bg-primary-dark/70" />
     </div>
   );
 };
@@ -139,7 +139,7 @@ const ASCIIWave = () => {
 const NavItem = ({ label, to }: { label: string; to: string }) => (
   <Link
     to={to}
-    className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
+    className="theme-text-primary text-sm uppercase tracking-[0.2em] font-bold mix-blend-difference hover:opacity-70 transition-opacity"
   >
     {label}
   </Link>
@@ -167,18 +167,18 @@ function Home() {
   const hasMoreTutorials = tutorials.length > latestTutorials.length;
   const backdropGradient =
     theme === "dark"
-      ? "linear-gradient(90deg, rgba(0,0,0,0.46) 0%, rgba(0,0,0,0.3) 32%, rgba(0,0,0,0.16) 68%, rgba(0,0,0,0.08) 100%)"
-      : "linear-gradient(90deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.12) 32%, rgba(0,0,0,0.07) 68%, rgba(0,0,0,0.04) 100%)";
+      ? "linear-gradient(90deg, rgba(15,16,16,0.52) 0%, rgba(15,16,16,0.34) 32%, rgba(15,16,16,0.18) 68%, rgba(15,16,16,0.08) 100%)"
+      : "linear-gradient(90deg, rgba(22,22,21,0.18) 0%, rgba(22,22,21,0.11) 32%, rgba(22,22,21,0.06) 68%, rgba(22,22,21,0.03) 100%)";
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-bg-primary-dark text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
-      <div className="relative border-b border-black/10 dark:border-white/10">
+    <div className="theme-page min-h-screen font-sans">
+      <div className="theme-border relative border-b">
         <ASCIIWave />
 
-        <nav className="relative z-10 border-b border-black/5 dark:border-white/5">
+        <nav className="theme-border-subtle relative z-10 border-b">
           <div className="flex items-center px-4 sm:px-6 xl:px-12 2xl:px-16 py-6">
             <button
-              className="mr-3 p-4 text-black dark:text-white mix-blend-difference md:hidden"
+              className="theme-text-primary mr-3 p-4 mix-blend-difference md:hidden"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={isMenuOpen}
@@ -197,14 +197,14 @@ function Home() {
                 href="https://github.com/FourWindff"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
+                className="theme-text-primary flex items-center gap-2 text-sm uppercase tracking-[0.2em] font-bold mix-blend-difference hover:opacity-70 transition-opacity"
               >
                 <GitHubMark size={16} />
                 Github
               </a>
               <button
                 onClick={toggleTheme}
-                className="p-2 text-black dark:text-white mix-blend-difference hover:opacity-70 transition-opacity"
+                className="theme-text-primary p-2 mix-blend-difference hover:opacity-70 transition-opacity"
                 aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -243,16 +243,16 @@ function Home() {
                 transition={{ duration: 0.28, ease: 'easeOut' }}
                 className="relative z-10 h-full w-[min(82vw,22rem)]"
               >
-                <aside className="h-full w-full bg-[#f5f5f5] dark:bg-[#080808] border-r border-black/10 dark:border-white/10">
-                  <div className="flex items-center gap-3 px-4 sm:px-6 py-6 border-b border-black/10 dark:border-white/10">
+                <aside className="theme-panel theme-border h-full w-full border-r">
+                  <div className="theme-border flex items-center gap-3 px-4 sm:px-6 py-6 border-b">
                     <button
-                      className="p-4 text-black dark:text-white"
+                      className="theme-text-primary p-4"
                       onClick={() => setIsMenuOpen(false)}
                       aria-label="Close menu"
                     >
                       <X size={24} />
                     </button>
-                    <div className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white">
+                    <div className="theme-text-primary flex items-center gap-3 text-xl font-black uppercase tracking-tighter">
                       <LogoMark className="block h-9 w-9 shrink-0" />
                       Mierepen
                     </div>
@@ -261,7 +261,7 @@ function Home() {
                     <Link
                       to="/archive"
                       onClick={() => setIsMenuOpen(false)}
-                      className="text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
+                      className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold"
                     >
                       Archive
                     </Link>
@@ -270,7 +270,7 @@ function Home() {
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setIsMenuOpen(false)}
-                      className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
+                      className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold"
                     >
                       <GitHubMark size={18} />
                       Github
@@ -280,7 +280,7 @@ function Home() {
                         toggleTheme()
                         setIsMenuOpen(false)
                       }}
-                      className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white text-left"
+                      className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-left"
                       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                     >
                       {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -307,21 +307,21 @@ function Home() {
       </div>
 
       <main>
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-24 border-x border-black/5 dark:border-white/5 bg-black/2 dark:bg-white/2">
+        <section className="theme-border-subtle theme-surface-soft max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-24 border-x">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
             <div className="lg:col-span-4">
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-6 font-bold flex items-center gap-2">
-                <span className="w-4 h-px bg-black/20 dark:bg-white/20"></span> IDENTITY_MODULE
+              <h3 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] mb-6 font-bold flex items-center gap-2">
+                <span className="theme-rule w-4 h-px"></span> IDENTITY_MODULE
               </h3>
-              <div className="w-32 h-32 bg-black/10 dark:bg-white/10 border border-black/20 dark:border-white/20 flex items-center justify-center mb-6">
-                <User size={48} className="text-black/20 dark:text-white/20" />
+              <div className="theme-surface theme-border-strong w-32 h-32 border flex items-center justify-center mb-6">
+                <User size={48} className="theme-text-faint" />
               </div>
             </div>
             <div className="lg:col-span-8">
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-8 leading-tight">
-                I'm a digital architect bridging the gap between <span className="text-neutral-600 dark:text-neutral-400 italic">low-fidelity aesthetics</span> and <span className="text-neutral-600 dark:text-neutral-400 italic">high-performance systems.</span>
+                I'm a digital architect bridging the gap between <span className="theme-text-secondary italic">low-fidelity aesthetics</span> and <span className="theme-text-secondary italic">high-performance systems.</span>
               </h2>
-              <div className="prose prose-invert max-w-2xl text-neutral-500 font-mono text-sm leading-relaxed space-y-4">
+              <div className="theme-text-tertiary prose prose-invert max-w-2xl font-mono text-sm leading-relaxed space-y-4">
                 <p>
                   Based in the intersection of code and art, I spend my time exploring kinetic typography, generative patterns, and the raw beauty of monospace environments.
                 </p>
@@ -333,8 +333,8 @@ function Home() {
           </div>
         </section>
 
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-24 border-t border-x border-black/10 dark:border-white/10">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-black/40 dark:text-white/40 mb-16 font-bold text-center">
+        <section className="theme-border max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-24 border-t border-x">
+          <h3 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] mb-16 font-bold text-center">
             [ 01 // SELECTED_WRITINGS ]
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
@@ -349,18 +349,18 @@ function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: idx * 0.1 }}
-                  className="pt-8 border-t border-black/20 dark:border-white/20 hover:border-black dark:hover:border-white transition-colors cursor-pointer group"
+                  className="theme-border-strong theme-border-active pt-8 border-t transition-colors cursor-pointer group"
                 >
-                  <div className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50 mb-6 font-bold">
+                  <div className="theme-text-muted font-mono text-[10px] uppercase tracking-widest mb-6 font-bold">
                     {idx + 1 < 10 ? `0${idx + 1}` : idx + 1} / {formatArchiveDate(post.date).toUpperCase()}
                   </div>
-                  <h2 className="text-2xl font-bold leading-tight mb-4 group-hover:text-neutral-700 dark:group-hover:text-neutral-300 transition-colors">
+                  <h2 className="theme-group-hover-soft text-2xl font-bold leading-tight mb-4 transition-colors">
                     {post.title}
                   </h2>
-                  <p className="text-neutral-500 text-sm leading-relaxed mb-6 line-clamp-3">
+                  <p className="theme-text-tertiary text-sm leading-relaxed mb-6 line-clamp-3">
                     {post.excerpt}
                   </p>
-                  <div className="flex items-center gap-4 text-[10px] font-mono text-black/30 dark:text-white/30 uppercase tracking-widest font-bold">
+                  <div className="theme-text-dim flex items-center gap-4 text-[10px] font-mono uppercase tracking-widest font-bold">
                     <span>{post.category}</span>
                     <span>/</span>
                     <span>{post.readTime}</span>
@@ -373,33 +373,33 @@ function Home() {
             <Link
               to="/archive"
               state={{ filter: 'blog' }}
-              className="inline-block bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs py-4 px-8 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors tracking-[0.2em]"
+              className="theme-button-primary inline-block font-black uppercase text-xs py-4 px-8 tracking-[0.2em]"
             >
               More
             </Link>
           </div>
         </section>
 
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-24 border-t border-x border-black/10 dark:border-white/10 bg-black/1 dark:bg-white/1">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-black/40 dark:text-white/40 mb-16 font-bold text-center">
+        <section className="theme-border theme-surface max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-24 border-t border-x">
+          <h3 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] mb-16 font-bold text-center">
             [ 02 // DOCS_LIBRARY ]
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 px-1 bg-black/10 dark:bg-white/10 border border-black/10 dark:border-white/10">
+          <div className="theme-surface theme-border grid grid-cols-1 md:grid-cols-2 gap-1 px-1 border">
             {latestTutorials.map((tutorial) => (
               <Link
                 key={tutorial.slug}
                 to={`/docs/${tutorial.slug}`}
-                className="bg-[#f5f5f5] dark:bg-bg-primary-dark p-6 sm:p-8 lg:p-12 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group relative block"
+                className="theme-panel theme-surface-hover p-6 sm:p-8 lg:p-12 group relative block"
               >
                 <div className="flex justify-between items-start mb-12">
-                  <span className="font-mono text-[10px] text-black/30 dark:text-white/30">
+                  <span className="theme-text-dim font-mono text-[10px]">
                     {tutorial.label.toUpperCase()} / {formatArchiveDate(tutorial.date).toUpperCase()}
                   </span>
-                  <ArrowUpRight size={20} className="text-black/20 dark:text-white/20 group-hover:text-black dark:group-hover:text-white transition-colors group-hover:translate-x-1 group-hover:-translate-y-1" />
+                  <ArrowUpRight size={20} className="theme-text-faint theme-group-hover-primary transition-colors group-hover:translate-x-1 group-hover:-translate-y-1" />
                 </div>
                 <h4 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase mb-4 break-words">{tutorial.title}</h4>
-                <p className="text-neutral-500 font-mono text-xs max-w-sm mb-8">{tutorial.summary}</p>
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/30 dark:text-white/30">
+                <p className="theme-text-tertiary font-mono text-xs max-w-sm mb-8">{tutorial.summary}</p>
+                <div className="theme-text-dim font-mono text-[10px] uppercase tracking-[0.2em]">
                   {tutorial.chapters.length} chapters
                 </div>
               </Link>
@@ -410,7 +410,7 @@ function Home() {
               <Link
                 to="/archive"
                 state={{ filter: 'docs' }}
-                className="inline-block bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs py-4 px-8 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors tracking-[0.2em]"
+                className="theme-button-primary inline-block font-black uppercase text-xs py-4 px-8 tracking-[0.2em]"
               >
                 More
               </Link>
@@ -420,9 +420,9 @@ function Home() {
 
       </main>
 
-      <footer className="px-4 sm:px-6 lg:px-12 py-10 border-t border-black/10 dark:border-white/10">
+      <footer className="theme-border px-4 sm:px-6 lg:px-12 py-10 border-t">
         <div className="max-w-7xl mx-auto flex justify-center items-center">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-black/50 dark:text-white/50">
+          <p className="theme-text-muted font-mono text-[10px] uppercase tracking-widest">
             &copy; 2024 MIEREPEN BLOG
           </p>
         </div>

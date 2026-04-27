@@ -30,11 +30,11 @@ export default function CodeBlock({ children, className }: CodeBlockProps) {
   if (lines[lines.length - 1] === '') lines.pop()
 
   return (
-    <div className="bg-black/2 dark:bg-white/2 border border-black/10 dark:border-white/10 rounded-none mb-6 overflow-hidden">
+    <div className="theme-surface-soft theme-border border rounded-none mb-6 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/2">
+      <div className="theme-surface-soft theme-border flex items-center justify-between px-4 py-3 border-b">
         {language ? (
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/50 dark:text-white/50 font-bold">
+          <span className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] font-bold">
             {language}
           </span>
         ) : (
@@ -42,7 +42,7 @@ export default function CodeBlock({ children, className }: CodeBlockProps) {
         )}
         <button
           onClick={handleCopy}
-          className="flex items-center gap-2 text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white transition-colors"
+          className="theme-text-muted theme-text-hover-primary flex items-center gap-2"
           aria-label="Copy code"
         >
           {copied ? (
@@ -69,11 +69,11 @@ export default function CodeBlock({ children, className }: CodeBlockProps) {
           <code>
             {lines.map((line, i) => (
               <div key={i} className="flex">
-                <span className="select-none text-black/30 dark:text-white/30 w-8 text-right mr-4 shrink-0">
+                <span className="theme-text-dim select-none w-8 text-right mr-4 shrink-0">
                   {i + 1}
                 </span>
                 <span
-                  className="text-neutral-700 dark:text-neutral-300"
+                  className="theme-text-soft"
                   dangerouslySetInnerHTML={{ __html: line || '&nbsp;' }}
                 />
               </div>

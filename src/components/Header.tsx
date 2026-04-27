@@ -21,17 +21,17 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
   const resolvedBackLabel = backLabel ?? (fromArchive ? 'Archive' : 'Home')
   const backdropGradient =
     theme === 'dark'
-      ? 'linear-gradient(90deg, rgba(0,0,0,0.46) 0%, rgba(0,0,0,0.3) 32%, rgba(0,0,0,0.16) 68%, rgba(0,0,0,0.08) 100%)'
-      : 'linear-gradient(90deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.12) 32%, rgba(0,0,0,0.07) 68%, rgba(0,0,0,0.04) 100%)'
+      ? 'linear-gradient(90deg, rgba(15,16,16,0.52) 0%, rgba(15,16,16,0.34) 32%, rgba(15,16,16,0.18) 68%, rgba(15,16,16,0.08) 100%)'
+      : 'linear-gradient(90deg, rgba(22,22,21,0.18) 0%, rgba(22,22,21,0.11) 32%, rgba(22,22,21,0.06) 68%, rgba(22,22,21,0.03) 100%)'
 
   const closeMenu = () => setIsMenuOpen(false)
 
   return (
-    <nav className="border-b border-black/10 dark:border-white/10 relative">
+    <nav className="theme-border border-b relative">
       <div className="flex items-center px-4 sm:px-6 xl:px-12 2xl:px-16 py-6">
         {/* Keep the mobile menu control at the far left. */}
         <button
-          className="md:hidden mr-3 p-2 text-black dark:text-white"
+          className="theme-text-primary md:hidden mr-3 p-2"
           onClick={() => setIsMenuOpen((open) => !open)}
           aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={isMenuOpen}
@@ -41,7 +41,7 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
 
         <Link
           to="/"
-          className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white hover:opacity-70 transition-opacity"
+          className="theme-text-primary flex items-center gap-3 text-xl font-black uppercase tracking-tighter hover:opacity-70 transition-opacity"
         >
           <LogoMark className="block h-9 w-9 shrink-0" />
           Mierepen
@@ -51,14 +51,14 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
         <div className="ml-auto hidden md:flex items-center gap-8">
           <Link
             to={resolvedBackTo}
-            className="text-sm uppercase tracking-[0.2em] font-bold text-black dark:text-white hover:opacity-70 transition-opacity flex items-center gap-2"
+            className="theme-text-primary text-sm uppercase tracking-[0.2em] font-bold hover:opacity-70 transition-opacity flex items-center gap-2"
           >
             <ArrowLeft size={16} />
             {resolvedBackLabel}
           </Link>
           <button
             onClick={toggleTheme}
-            className="p-2 text-black dark:text-white hover:opacity-70 transition-opacity"
+            className="theme-text-primary p-2 hover:opacity-70 transition-opacity"
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -96,16 +96,16 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
               transition={{ duration: 0.28, ease: 'easeOut' }}
               className="relative z-10 h-full w-[min(82vw,22rem)]"
             >
-              <aside className="h-full w-full bg-[#f5f5f5] dark:bg-[#080808] border-r border-black/10 dark:border-white/10">
-                <div className="flex items-center gap-3 border-b border-black/10 dark:border-white/10 px-4 sm:px-6 py-6">
+              <aside className="theme-panel theme-border h-full w-full border-r">
+                <div className="theme-border flex items-center gap-3 border-b px-4 sm:px-6 py-6">
                   <button
-                    className="p-2 text-black dark:text-white"
+                    className="theme-text-primary p-2"
                     onClick={closeMenu}
                     aria-label="Close menu"
                   >
                     <X size={24} />
                   </button>
-                  <div className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white">
+                  <div className="theme-text-primary flex items-center gap-3 text-xl font-black uppercase tracking-tighter">
                     <LogoMark className="block h-9 w-9 shrink-0" />
                     Mierepen
                   </div>
@@ -114,7 +114,7 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
                   <Link
                     to={resolvedBackTo}
                     onClick={closeMenu}
-                    className="text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white flex items-center gap-3"
+                    className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold flex items-center gap-3"
                   >
                     <ArrowLeft size={18} />
                     {resolvedBackLabel}
@@ -122,7 +122,7 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
                   <Link
                     to="/archive"
                     onClick={closeMenu}
-                    className="text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
+                    className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold"
                   >
                     Archive
                   </Link>
@@ -131,7 +131,7 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={closeMenu}
-                    className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white"
+                    className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold"
                   >
                     <svg
                       aria-hidden="true"
@@ -147,7 +147,7 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
                       toggleTheme()
                       closeMenu()
                     }}
-                    className="flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-black dark:text-white text-left"
+                    className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-left"
                     aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                   >
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}

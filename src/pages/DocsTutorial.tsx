@@ -52,7 +52,7 @@ export default function DocsTutorial() {
 
   if (tutorialSlug && loadedSlug !== tutorialSlug) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
+      <div className="theme-page min-h-screen flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Loading Tutorial...
       </div>
     )
@@ -60,7 +60,7 @@ export default function DocsTutorial() {
 
   if (!tutorial || !activeChapter) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white flex items-center justify-center font-mono text-sm tracking-widest uppercase">
+      <div className="theme-page min-h-screen flex items-center justify-center font-mono text-sm tracking-widest uppercase">
         Tutorial Not Found
       </div>
     )
@@ -69,7 +69,7 @@ export default function DocsTutorial() {
   const ActiveChapter = activeChapter.Component
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#080808] text-black dark:text-white font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
+    <div className="theme-page min-h-screen font-sans">
       <Header />
 
       <div className="relative px-4 sm:px-6 lg:px-12 pt-10 pb-32 xl:px-[260px] 2xl:px-[340px]">
@@ -83,20 +83,20 @@ export default function DocsTutorial() {
                 transition={{ duration: 0.5 }}
                 className="mb-6 text-left"
               >
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-black/40 dark:text-white/40 mb-4 font-bold">
+                <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.25em] mb-4 font-bold">
                   {tutorial.meta.label} / {formatArchiveDate(tutorial.meta.date)}
                 </div>
                 <h1 className="text-2xl font-black uppercase tracking-tight leading-[0.95] mb-3">
                   {tutorial.meta.title}
                 </h1>
-                <p className="text-neutral-600 dark:text-neutral-400 font-mono text-xs leading-relaxed">
+                <p className="theme-text-secondary font-mono text-xs leading-relaxed">
                   {tutorial.meta.summary}
                 </p>
               </motion.header>
 
-              <div className="border-l border-black/10 dark:border-white/10 pl-4">
+              <div className="theme-border border-l pl-4">
                 <div className="px-2 py-3">
-                  <h2 className="font-mono text-[10px] uppercase tracking-[0.3em] text-black/40 dark:text-white/40 font-bold">
+                  <h2 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] font-bold">
                     Chapter Directory
                   </h2>
                 </div>
@@ -110,8 +110,8 @@ export default function DocsTutorial() {
                         to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
                         className={`block px-3 py-3 border-l transition-colors ${
                           isActive
-                            ? 'border-black dark:border-white text-black dark:text-white'
-                            : 'border-transparent hover:border-black/30 dark:hover:border-white/30 text-black/70 dark:text-white/70'
+                            ? 'theme-border-primary theme-text-primary'
+                            : 'border-transparent theme-border-hover theme-text-secondary'
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -130,7 +130,7 @@ export default function DocsTutorial() {
 
           {/* Mobile chapter navigation (visible below xl) */}
           <div className="xl:hidden mb-8 max-w-5xl mx-auto">
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-black/40 dark:text-white/40 mb-3 font-bold">
+            <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.25em] mb-3 font-bold">
               {tutorial.meta.label} / {formatArchiveDate(tutorial.meta.date)}
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight leading-[0.95] mb-6 break-words">
@@ -139,20 +139,20 @@ export default function DocsTutorial() {
             <button
               type="button"
               onClick={() => setIsMobileChapterOpen((open) => !open)}
-              className="w-full flex items-center justify-between gap-3 px-4 py-3 border border-black/15 dark:border-white/15 hover:border-black/40 dark:hover:border-white/40 transition-colors text-left"
+              className="theme-border theme-border-hover w-full flex items-center justify-between gap-3 px-4 py-3 border text-left"
               aria-expanded={isMobileChapterOpen}
               aria-label="Toggle chapter list"
             >
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-1">
+                <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] mb-1">
                   Chapter {String(activeChapter.sidebarPosition).padStart(2, '0')}
                 </div>
                 <div className="font-bold text-base leading-tight truncate">{activeChapter.title}</div>
               </div>
               {isMobileChapterOpen ? (
-                <ChevronUp size={20} className="shrink-0 text-black/60 dark:text-white/60" />
+                <ChevronUp size={20} className="theme-text-muted shrink-0" />
               ) : (
-                <ChevronDown size={20} className="shrink-0 text-black/60 dark:text-white/60" />
+                <ChevronDown size={20} className="theme-text-muted shrink-0" />
               )}
             </button>
             <AnimatePresence>
@@ -162,7 +162,7 @@ export default function DocsTutorial() {
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="overflow-hidden border-x border-b border-black/15 dark:border-white/15"
+                  className="theme-border overflow-hidden border-x border-b"
                   aria-label={`${tutorial.meta.title} chapters`}
                 >
                   <ul>
@@ -175,8 +175,8 @@ export default function DocsTutorial() {
                             onClick={() => setIsMobileChapterOpen(false)}
                             className={`block px-4 py-3 border-l-2 transition-colors ${
                               isActive
-                                ? 'border-black dark:border-white bg-black/5 dark:bg-white/5 text-black dark:text-white'
-                                : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-black/70 dark:text-white/70'
+                                ? 'theme-border-primary theme-surface-hover theme-text-primary'
+                                : 'border-transparent theme-surface-hover theme-text-secondary'
                             }`}
                           >
                             <div className="flex items-start gap-3">
