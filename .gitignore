@@ -27,5 +27,5 @@ dist-ssr
 .gemini
 .codex
 .playwright-mcp
-openspec
 .worktrees
+openspec

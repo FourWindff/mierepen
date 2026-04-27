@@ -49,7 +49,7 @@ export default function BlogPost() {
       <Header />
 
       {/* Article Header */}
-      <header className="max-w-4xl mx-auto px-12 pt-24 pb-12">
+      <header className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-12 pt-12 sm:pt-16 lg:pt-24 pb-8 sm:pb-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -59,7 +59,7 @@ export default function BlogPost() {
             <span className="w-4 h-[1px] bg-black/20 dark:bg-white/20"></span>
             {post.meta.category}
           </div>
-          <h1 className="text-5xl md:text-6xl font-black uppercase tracking-tight leading-[0.9] mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight leading-[0.9] mb-8">
             {post.meta.title}
           </h1>
           <div className="flex items-center gap-6 text-[10px] font-mono text-black/40 dark:text-white/40 uppercase tracking-widest font-bold">
@@ -73,7 +73,7 @@ export default function BlogPost() {
       </header>
 
       {/* Article Content */}
-      <article className="max-w-4xl mx-auto px-12 pb-32">
+      <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-12 pb-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
