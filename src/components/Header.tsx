@@ -24,7 +24,7 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
 
   return (
     <nav className="border-b border-black/10 dark:border-white/10 relative">
-      <div className="max-w-7xl mx-auto flex items-center px-4 sm:px-6 lg:px-12 py-6">
+      <div className="flex items-center px-4 sm:px-6 xl:px-12 2xl:px-16 py-6">
         {/* Keep the mobile menu control at the far left. */}
         <button
           className="md:hidden mr-3 p-2 text-black dark:text-white"

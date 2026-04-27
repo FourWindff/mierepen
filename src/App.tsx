@@ -172,7 +172,7 @@ function Home() {
         <ASCIIWave />
 
         <nav className="relative z-10 border-b border-black/5 dark:border-white/5">
-          <div className="max-w-7xl mx-auto flex items-center px-4 sm:px-6 lg:px-12 py-6">
+          <div className="flex items-center px-4 sm:px-6 xl:px-12 2xl:px-16 py-6">
             <button
               className="mr-3 p-4 text-black dark:text-white mix-blend-difference md:hidden"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
