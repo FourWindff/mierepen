@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { ArrowLeft, Sun, Moon, Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useTheme } from '../lib/useTheme'
+import LogoMark from './LogoMark'
 
 interface HeaderProps {
   backTo?: string
@@ -36,8 +37,9 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
 
         <Link
           to="/"
-          className="text-xl font-black uppercase tracking-tighter text-black dark:text-white hover:opacity-70 transition-opacity"
+          className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white hover:opacity-70 transition-opacity"
         >
+          <LogoMark className="block h-9 w-9 shrink-0" />
           Mierepen
         </Link>
 
@@ -87,7 +89,8 @@ export default function Header({ backTo, backLabel }: HeaderProps) {
                 >
                   <X size={24} />
                 </button>
-                <div className="text-xl font-black uppercase tracking-tighter text-black dark:text-white">
+                <div className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white">
+                  <LogoMark className="block h-9 w-9 shrink-0" />
                   Mierepen
                 </div>
               </div>

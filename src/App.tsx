@@ -14,6 +14,7 @@ import { useTheme } from "./lib/useTheme";
 import BlogPost from "./pages/BlogPost";
 import Archive from "./pages/Archive";
 import DocsTutorial from "./pages/DocsTutorial";
+import LogoMark from "./components/LogoMark";
 
 // --- ASCII Wave Component ---
 
@@ -182,6 +183,7 @@ function Home() {
             </button>
 
             <div className="flex items-center gap-3">
+              <LogoMark className="block h-9 w-9 shrink-0 mix-blend-difference" />
               <h1 className="text-xl font-black uppercase tracking-tighter mix-blend-difference">Mierepen</h1>
             </div>
 
@@ -234,7 +236,10 @@ function Home() {
                   >
                     <X size={24} />
                   </button>
-                  <h1 className="text-xl font-black uppercase tracking-tighter text-black dark:text-white">Mierepen</h1>
+                  <div className="flex items-center gap-3 text-xl font-black uppercase tracking-tighter text-black dark:text-white">
+                    <LogoMark className="block h-9 w-9 shrink-0" />
+                    Mierepen
+                  </div>
                 </div>
                 <div className="flex flex-col px-4 sm:px-6 py-8 gap-8">
                   <Link
