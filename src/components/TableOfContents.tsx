@@ -1,27 +1,47 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 
-interface HeadingItem {
+export interface HeadingItem {
   id: string
   text: string
   level: number
 }
 
-interface TableOfContentsProps {
-  containerSelector?: string
+export interface TableOfContentsState {
+  headings: HeadingItem[]
+  activeId: string
+  scrollToHeading: (id: string) => void
 }
 
-export default function TableOfContents({ containerSelector = 'article' }: TableOfContentsProps) {
+interface TableOfContentsProps {
+  containerSelector?: string
+  state?: TableOfContentsState
+  className?: string
+  title?: string
+  sticky?: boolean
+}
+
+export function useTableOfContents(
+  containerSelector = 'article',
+  refreshKey?: string,
+): TableOfContentsState {
   const [headings, setHeadings] = useState<HeadingItem[]>([])
   const [activeId, setActiveId] = useState<string>('')
+  const headingsSignatureRef = useRef('')
   const scrollLockIdRef = useRef<string | null>(null)
   const scrollUnlockTimerRef = useRef<number | null>(null)
 
   // Extract headings from DOM
   useEffect(() => {
+    let observer: MutationObserver | null = null
+    let connectTimer: number | null = null
+
     const extractHeadings = () => {
       const container = document.querySelector(containerSelector)
       if (!container) {
-        setHeadings([])
+        if (headingsSignatureRef.current !== '') {
+          headingsSignatureRef.current = ''
+          setHeadings([])
+        }
         return
       }
 
@@ -45,27 +65,44 @@ export default function TableOfContents({ containerSelector = 'article' }: Table
         })
       })
 
-      setHeadings(items)
+      const nextSignature = items
+        .map((item) => `${item.level}:${item.id}:${item.text}`)
+        .join('|')
+
+      if (headingsSignatureRef.current !== nextSignature) {
+        headingsSignatureRef.current = nextSignature
+        setHeadings(items)
+      }
     }
 
-    // Initial extraction with delay to ensure MDX content is rendered
-    const timer = setTimeout(extractHeadings, 100)
+    const connectObserver = () => {
+      const container = document.querySelector(containerSelector)
 
-    // Re-extract when content changes (e.g., chapter navigation)
-    const observer = new MutationObserver(() => {
+      if (!container) {
+        connectTimer = window.setTimeout(connectObserver, 50)
+        return
+      }
+
       extractHeadings()
-    })
-
-    const container = document.querySelector(containerSelector)
-    if (container) {
+      observer = new MutationObserver(() => {
+        extractHeadings()
+      })
       observer.observe(container, { childList: true, subtree: true })
     }
 
+    scrollLockIdRef.current = null
+    headingsSignatureRef.current = ''
+    setActiveId('')
+    setHeadings([])
+    connectObserver()
+
     return () => {
-      clearTimeout(timer)
-      observer.disconnect()
+      if (connectTimer !== null) {
+        window.clearTimeout(connectTimer)
+      }
+      observer?.disconnect()
     }
-  }, [containerSelector])
+  }, [containerSelector, refreshKey])
 
   useEffect(() => {
     if (headings.length === 0) return
@@ -151,7 +188,7 @@ export default function TableOfContents({ containerSelector = 'article' }: Table
     }
   }, [headings])
 
-  const handleClick = useCallback((id: string) => {
+  const scrollToHeading = useCallback((id: string) => {
     const element = document.getElementById(id)
     if (element) {
       const topOffset = 96
@@ -165,23 +202,36 @@ export default function TableOfContents({ containerSelector = 'article' }: Table
     }
   }, [])
 
-  if (headings.length === 0) {
+  return {
+    headings,
+    activeId,
+    scrollToHeading,
+  }
+}
+
+export default function TableOfContents({
+  containerSelector = 'article',
+  state,
+  className = 'hidden lg:block w-full',
+  title = 'On This Page',
+  sticky = true,
+}: TableOfContentsProps) {
+  const toc = state ?? useTableOfContents(containerSelector)
+
+  if (toc.headings.length === 0) {
     return null
   }
 
   return (
-    <nav
-      className="hidden lg:block w-full"
-      aria-label="Table of contents"
-    >
-      <div className="sticky top-10">
+    <nav className={className} aria-label="Table of contents">
+      <div className={sticky ? 'sticky top-10' : undefined}>
         <h2 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] font-bold mb-4">
-          On This Page
+          {title}
         </h2>
         <ul className="space-y-1">
-          {headings.map((heading) => {
+          {toc.headings.map((heading) => {
             const indent = (heading.level - 2) * 1 // h2=0, h3=1rem, h4=2rem...
-            const isActive = activeId === heading.id
+            const isActive = toc.activeId === heading.id
 
             return (
               <li key={heading.id} className="relative">
@@ -192,7 +242,7 @@ export default function TableOfContents({ containerSelector = 'article' }: Table
                   />
                 ) : null}
                 <button
-                  onClick={() => handleClick(heading.id)}
+                  onClick={() => toc.scrollToHeading(heading.id)}
                   className={`theme-text-hover-primary block w-full text-left text-xs leading-relaxed py-1 pr-2 break-words ${
                     isActive
                       ? 'theme-text-primary'

@@ -123,7 +123,7 @@ html.dark .theme-header-shell {
 
 .theme-header-shell-home {
   position: relative;
-  background: color-mix(in srgb, var(--color-bg-primary) 52%, transparent);
+  background: color-mix(in srgb, var(--color-bg-primary) 58%, transparent);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
@@ -144,7 +144,7 @@ html.dark .theme-header-shell {
 }
 
 html.dark .theme-header-shell-home {
-  background: color-mix(in srgb, var(--color-bg-primary-dark) 66%, transparent);
+  background: color-mix(in srgb, var(--color-bg-primary-dark) 72%, transparent);
 }
 
 html.dark .theme-header-shell-home::after {

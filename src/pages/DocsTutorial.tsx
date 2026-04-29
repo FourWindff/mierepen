@@ -6,7 +6,7 @@ import { getTutorialBySlug, type Tutorial } from '../lib/docs'
 import { formatArchiveDate } from '../lib/content'
 import { mdxComponents } from '../components/mdx'
 import Header from '../components/Header'
-import TableOfContents from '../components/TableOfContents'
+import TableOfContents, { useTableOfContents } from '../components/TableOfContents'
 
 export default function DocsTutorial() {
   const { tutorialSlug, chapterSlug } = useParams<{
@@ -15,7 +15,7 @@ export default function DocsTutorial() {
   }>()
   const [tutorial, setTutorial] = useState<Tutorial | null>(null)
   const [loadedSlug, setLoadedSlug] = useState<string | null>(null)
-  const [isMobileChapterOpen, setIsMobileChapterOpen] = useState(false)
+  const [isMobileTocOpen, setIsMobileTocOpen] = useState(false)
 
   useEffect(() => {
     if (!tutorialSlug) return
@@ -34,6 +34,7 @@ export default function DocsTutorial() {
 
   const activeChapter =
     tutorial?.chapters.find((chapter) => chapter.slug === chapterSlug) ?? tutorial?.chapters[0]
+  const toc = useTableOfContents('article', activeChapter?.slug)
 
   useEffect(() => {
     if (!activeChapter) return
@@ -45,9 +46,9 @@ export default function DocsTutorial() {
     }
   }, [activeChapter?.slug])
 
-  // Close mobile chapter panel when chapter changes
+  // Close the mobile page outline when chapter changes
   useEffect(() => {
-    setIsMobileChapterOpen(false)
+    setIsMobileTocOpen(false)
   }, [activeChapter?.slug])
 
   if (tutorialSlug && loadedSlug !== tutorialSlug) {
@@ -67,10 +68,52 @@ export default function DocsTutorial() {
   }
 
   const ActiveChapter = activeChapter.Component
+  const activeTocHeading = toc.headings.find((heading) => heading.id === toc.activeId) ?? toc.headings[0]
 
   return (
     <div className="theme-page min-h-screen font-sans">
-      <Header />
+      <Header
+        mobileMenuContent={({ closeMenu }) => (
+          <div className="theme-border border-b pb-8">
+            <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] font-bold mb-4">
+              Docs Directory
+            </div>
+            <div className="theme-text-primary font-bold text-base leading-tight mb-2">
+              {tutorial.meta.title}
+            </div>
+            <nav aria-label={`${tutorial.meta.title} files`}>
+              <ul className="space-y-1">
+                {tutorial.chapters.map((chapter) => {
+                  const isActive = chapter.slug === activeChapter.slug
+
+                  return (
+                    <li key={chapter.slug}>
+                      <Link
+                        to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
+                        onClick={closeMenu}
+                        className={`block border-l-2 px-3 py-3 transition-colors ${
+                          isActive
+                            ? 'theme-border-primary theme-text-primary'
+                            : 'border-transparent theme-surface-hover theme-text-secondary'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
+                            {String(chapter.sidebarPosition).padStart(2, '0')}
+                          </span>
+                          <div className="min-w-0 font-bold leading-tight break-words">
+                            {chapter.title}
+                          </div>
+                        </div>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </nav>
+          </div>
+        )}
+      />
 
       <div className="relative px-4 sm:px-6 lg:px-12 pt-10 pb-32 xl:px-[260px] 2xl:px-[340px]">
         <section className="mx-auto">
@@ -128,7 +171,7 @@ export default function DocsTutorial() {
             </div>
           </aside>
 
-          {/* Mobile chapter navigation (visible below xl) */}
+          {/* Mobile page outline (visible below xl) */}
           <div className="xl:hidden mb-8 max-w-5xl mx-auto">
             <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.25em] mb-3 font-bold">
               {tutorial.meta.label} / {formatArchiveDate(tutorial.meta.date)}
@@ -136,63 +179,49 @@ export default function DocsTutorial() {
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight leading-[0.95] mb-6 break-words">
               {tutorial.meta.title}
             </h1>
-            <button
-              type="button"
-              onClick={() => setIsMobileChapterOpen((open) => !open)}
-              className="theme-border theme-border-hover w-full flex items-center justify-between gap-3 px-4 py-3 border text-left"
-              aria-expanded={isMobileChapterOpen}
-              aria-label="Toggle chapter list"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] mb-1">
-                  Chapter {String(activeChapter.sidebarPosition).padStart(2, '0')}
-                </div>
-                <div className="font-bold text-base leading-tight truncate">{activeChapter.title}</div>
-              </div>
-              {isMobileChapterOpen ? (
-                <ChevronUp size={20} className="theme-text-muted shrink-0" />
-              ) : (
-                <ChevronDown size={20} className="theme-text-muted shrink-0" />
-              )}
-            </button>
-            <AnimatePresence>
-              {isMobileChapterOpen ? (
-                <motion.nav
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="theme-border overflow-hidden border-x border-b"
-                  aria-label={`${tutorial.meta.title} chapters`}
+            {toc.headings.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileTocOpen((open) => !open)}
+                  className="theme-border theme-border-hover w-full flex items-center justify-between gap-3 px-4 py-3 border text-left"
+                  aria-expanded={isMobileTocOpen}
+                  aria-label="Toggle page outline"
                 >
-                  <ul>
-                    {tutorial.chapters.map((chapter) => {
-                      const isActive = chapter.slug === activeChapter.slug
-                      return (
-                        <li key={chapter.slug}>
-                          <Link
-                            to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
-                            onClick={() => setIsMobileChapterOpen(false)}
-                            className={`block px-4 py-3 border-l-2 transition-colors ${
-                              isActive
-                                ? 'theme-border-primary theme-surface-hover theme-text-primary'
-                                : 'border-transparent theme-surface-hover theme-text-secondary'
-                            }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
-                                {String(chapter.sidebarPosition).padStart(2, '0')}
-                              </span>
-                              <div className="font-bold leading-tight break-words">{chapter.title}</div>
-                            </div>
-                          </Link>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </motion.nav>
-              ) : null}
-            </AnimatePresence>
+                  <div className="min-w-0 flex-1">
+                    <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] mb-1">
+                      On This Page
+                    </div>
+                    <div className="font-bold text-base leading-tight truncate">
+                      {activeTocHeading?.text ?? 'Browse headings'}
+                    </div>
+                  </div>
+                  {isMobileTocOpen ? (
+                    <ChevronUp size={20} className="theme-text-muted shrink-0" />
+                  ) : (
+                    <ChevronDown size={20} className="theme-text-muted shrink-0" />
+                  )}
+                </button>
+                <AnimatePresence>
+                  {isMobileTocOpen ? (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="theme-border overflow-hidden border-x border-b"
+                    >
+                      <TableOfContents
+                        state={toc}
+                        className="block w-full px-4 py-4"
+                        title="Section Directory"
+                        sticky={false}
+                      />
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </>
+            ) : null}
           </div>
 
           {/* Center: content */}
@@ -211,7 +240,7 @@ export default function DocsTutorial() {
           {/* Right sidebar: TOC (desktop only) */}
           <aside className="hidden xl:block xl:fixed xl:right-0 xl:top-24 xl:bottom-10 xl:w-[260px] 2xl:w-[340px]">
             <div className="h-full overflow-y-auto px-10 2xl:px-14">
-              <TableOfContents />
+              <TableOfContents state={toc} />
             </div>
           </aside>
         </section>
