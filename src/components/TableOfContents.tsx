@@ -18,6 +18,7 @@ interface TableOfContentsProps {
   className?: string
   title?: string
   sticky?: boolean
+  onItemClick?: () => void
 }
 
 export function useTableOfContents(
@@ -215,6 +216,7 @@ export default function TableOfContents({
   className = 'hidden lg:block w-full',
   title = 'On This Page',
   sticky = true,
+  onItemClick,
 }: TableOfContentsProps) {
   const toc = state ?? useTableOfContents(containerSelector)
 
@@ -242,7 +244,10 @@ export default function TableOfContents({
                   />
                 ) : null}
                 <button
-                  onClick={() => toc.scrollToHeading(heading.id)}
+                  onClick={() => {
+                    toc.scrollToHeading(heading.id)
+                    onItemClick?.()
+                  }}
                   className={`theme-text-hover-primary block w-full text-left text-xs leading-relaxed py-1 pr-2 break-words ${
                     isActive
                       ? 'theme-text-primary'

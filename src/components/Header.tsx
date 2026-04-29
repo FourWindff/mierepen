@@ -162,7 +162,7 @@ export default function Header({
               transition={{ duration: 0.28, ease: 'easeOut' }}
               className="relative z-10 h-full w-[min(82vw,22rem)]"
             >
-              <aside className="theme-panel theme-border h-full w-full border-r">
+              <aside className="theme-panel theme-border flex h-full w-full flex-col border-r">
                 <div className={mobilePanelHeaderClassName}>
                   <button
                     className={isHome ? 'theme-text-primary p-4' : 'theme-text-primary p-2'}
@@ -176,46 +176,51 @@ export default function Header({
                     Mierepen
                   </div>
                 </div>
-                <div className="flex flex-col px-4 sm:px-6 py-8 gap-8">
-                  {mobileMenuContent ? mobileMenuContent({ closeMenu }) : null}
-                  {isHome ? null : (
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 py-8"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  <div className="flex flex-col gap-8 pb-8">
+                    {mobileMenuContent ? mobileMenuContent({ closeMenu }) : null}
+                    {isHome ? null : (
+                      <Link
+                        to={resolvedBackTo}
+                        onClick={closeMenu}
+                        className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold flex items-center gap-3"
+                      >
+                        <ArrowLeft size={18} />
+                        {resolvedBackLabel}
+                      </Link>
+                    )}
                     <Link
-                      to={resolvedBackTo}
+                      to="/archive"
                       onClick={closeMenu}
-                      className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold flex items-center gap-3"
+                      className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold"
                     >
-                      <ArrowLeft size={18} />
-                      {resolvedBackLabel}
+                      Archive
                     </Link>
-                  )}
-                  <Link
-                    to="/archive"
-                    onClick={closeMenu}
-                    className="theme-text-primary text-base uppercase tracking-[0.2em] font-bold"
-                  >
-                    Archive
-                  </Link>
-                  <a
-                    href={githubHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={closeMenu}
-                    className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold"
-                  >
-                    <GitHubMark size={18} />
-                    Github
-                  </a>
-                  <button
-                    onClick={() => {
-                      toggleTheme()
-                      closeMenu()
-                    }}
-                    className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-left"
-                    aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                  >
-                    {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                    {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                  </button>
+                    <a
+                      href={githubHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={closeMenu}
+                      className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold"
+                    >
+                      <GitHubMark size={18} />
+                      Github
+                    </a>
+                    <button
+                      onClick={() => {
+                        toggleTheme()
+                        closeMenu()
+                      }}
+                      className="theme-text-primary flex items-center gap-3 text-base uppercase tracking-[0.2em] font-bold text-left"
+                      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                    >
+                      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    </button>
+                  </div>
                 </div>
               </aside>
             </motion.div>

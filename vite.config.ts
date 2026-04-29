@@ -103,6 +103,54 @@ function toImportPath(filePath: string) {
   return filePath.split(path.sep).join(path.posix.sep)
 }
 
+function normalizeHeadingText(raw: string) {
+  return raw
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/<\/?[^>]+>/g, '')
+    .replace(/[*_~]/g, '')
+    .trim()
+}
+
+function createHeadingId(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\-]/g, '')
+}
+
+function extractMdxHeadings(raw: string) {
+  const headings: Array<{ id: string; text: string; level: number }> = []
+  const lines = raw.split(/\r?\n/)
+  let inFence = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence
+      continue
+    }
+
+    if (inFence) continue
+
+    const match = /^(#{2,6})\s+(.+?)\s*$/.exec(trimmed)
+    if (!match) continue
+
+    const text = normalizeHeadingText(match[2])
+    if (!text) continue
+
+    headings.push({
+      id: createHeadingId(text),
+      text,
+      level: match[1].length,
+    })
+  }
+
+  return headings
+}
+
 function docsIndexPlugin() {
   return {
     name: 'docs-index',
@@ -134,6 +182,11 @@ function docsIndexPlugin() {
           sidebarPosition: number
           excerpt: string
           importPath: string
+          headings: Array<{
+            id: string
+            text: string
+            level: number
+          }>
         }>
       }> = []
 
@@ -170,6 +223,7 @@ function docsIndexPlugin() {
               sidebarPosition,
               excerpt: String(data.excerpt ?? ''),
               importPath: toImportPath(`../../docs/${slug}/${fileName}`),
+              headings: extractMdxHeadings(raw),
             }
           })
           .filter((chapter): chapter is NonNullable<typeof chapter> => chapter !== null)

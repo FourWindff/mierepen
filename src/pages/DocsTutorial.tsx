@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { getTutorialBySlug, type Tutorial } from '../lib/docs'
 import { formatArchiveDate } from '../lib/content'
 import { mdxComponents } from '../components/mdx'
 import Header from '../components/Header'
 import TableOfContents, { useTableOfContents } from '../components/TableOfContents'
+import type { HeadingItem } from '../components/TableOfContents'
 
 export default function DocsTutorial() {
   const { tutorialSlug, chapterSlug } = useParams<{
     tutorialSlug: string
     chapterSlug?: string
   }>()
+  const location = useLocation()
   const [tutorial, setTutorial] = useState<Tutorial | null>(null)
   const [loadedSlug, setLoadedSlug] = useState<string | null>(null)
-  const [isMobileTocOpen, setIsMobileTocOpen] = useState(false)
+  const [expandedMobileChapterSlug, setExpandedMobileChapterSlug] = useState<string | null>(null)
 
   useEffect(() => {
     if (!tutorialSlug) return
@@ -39,16 +41,28 @@ export default function DocsTutorial() {
   useEffect(() => {
     if (!activeChapter) return
 
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-
-    if (window.location.hash) {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    if (!location.hash) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      return
     }
-  }, [activeChapter?.slug])
 
-  // Close the mobile page outline when chapter changes
+    const targetId = decodeURIComponent(location.hash.slice(1))
+    const frame = window.requestAnimationFrame(() => {
+      const element = document.getElementById(targetId)
+      if (!element) return
+
+      const topOffset = 96
+      const top = element.getBoundingClientRect().top + window.scrollY - topOffset
+      window.scrollTo({ top, left: 0, behavior: 'auto' })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [activeChapter?.slug, location.hash, toc.headings])
+
   useEffect(() => {
-    setIsMobileTocOpen(false)
+    setExpandedMobileChapterSlug(activeChapter?.slug ?? null)
   }, [activeChapter?.slug])
 
   if (tutorialSlug && loadedSlug !== tutorialSlug) {
@@ -70,6 +84,55 @@ export default function DocsTutorial() {
   const ActiveChapter = activeChapter.Component
   const activeTocHeading = toc.headings.find((heading) => heading.id === toc.activeId) ?? toc.headings[0]
 
+  const renderChapterHeadings = ({
+    chapter,
+    closeMenu,
+  }: {
+    chapter: Tutorial['chapters'][number]
+    closeMenu: () => void
+  }) => {
+    const isActiveChapter = chapter.slug === activeChapter.slug
+    const headings: HeadingItem[] = isActiveChapter ? toc.headings : chapter.headings
+
+    if (headings.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="theme-border overflow-hidden border-t">
+        {isActiveChapter ? (
+          <TableOfContents
+            state={toc}
+            className="block w-full px-4 py-4"
+            title="Section Directory"
+            sticky={false}
+            onItemClick={closeMenu}
+          />
+        ) : (
+          <nav className="block w-full px-4 py-4" aria-label={`${chapter.title} sections`}>
+            <h2 className="theme-text-muted mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.3em]">
+              Section Directory
+            </h2>
+            <ul className="space-y-1">
+              {headings.map((heading) => (
+                <li key={heading.id}>
+                  <Link
+                    to={`/docs/${tutorial.meta.slug}/${chapter.slug}#${heading.id}`}
+                    onClick={closeMenu}
+                    className="theme-text-hover-primary theme-text-tertiary block w-full break-words py-1 pr-2 text-left text-xs leading-relaxed"
+                    style={{ paddingLeft: `${heading.level - 1}rem` }}
+                  >
+                    {heading.text}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="theme-page min-h-screen font-sans">
       <Header
@@ -85,27 +148,79 @@ export default function DocsTutorial() {
               <ul className="space-y-1">
                 {tutorial.chapters.map((chapter) => {
                   const isActive = chapter.slug === activeChapter.slug
+                  const isExpanded = expandedMobileChapterSlug === chapter.slug
+                  const chapterHeadings = isActive ? toc.headings : chapter.headings
+                  const canToggleToc = chapterHeadings.length > 0
 
                   return (
                     <li key={chapter.slug}>
-                      <Link
-                        to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
-                        onClick={closeMenu}
-                        className={`block border-l-2 px-3 py-3 transition-colors ${
+                      <div
+                        className={`border-l-2 transition-colors ${
                           isActive
-                            ? 'theme-border-primary theme-text-primary'
-                            : 'border-transparent theme-surface-hover theme-text-secondary'
+                            ? 'theme-border-primary'
+                            : 'border-transparent theme-surface-hover'
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
-                            {String(chapter.sidebarPosition).padStart(2, '0')}
-                          </span>
-                          <div className="min-w-0 font-bold leading-tight break-words">
-                            {chapter.title}
+                        <div className="flex items-stretch">
+                          <Link
+                            to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
+                            onClick={closeMenu}
+                            className={`min-w-0 flex-1 px-3 py-3 ${
+                              isActive ? 'theme-text-primary' : 'theme-text-secondary'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
+                                {String(chapter.sidebarPosition).padStart(2, '0')}
+                              </span>
+                              <div className="min-w-0 font-bold leading-tight break-words">
+                                {chapter.title}
+                              </div>
+                            </div>
+                          </Link>
+                          <div className="flex items-center pr-2">
+                            {canToggleToc ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedMobileChapterSlug((current) =>
+                                    current === chapter.slug ? null : chapter.slug,
+                                  )
+                                }
+                                className="theme-text-muted theme-text-hover-primary p-2 transition-colors"
+                                aria-expanded={isExpanded}
+                                aria-label={
+                                  isExpanded
+                                    ? `Collapse ${chapter.title} section directory`
+                                    : `Expand ${chapter.title} section directory`
+                                }
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown size={18} />
+                                ) : (
+                                  <ChevronRight size={18} />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="theme-text-muted p-2 opacity-50" aria-hidden="true">
+                                <ChevronRight size={18} />
+                              </span>
+                            )}
                           </div>
                         </div>
-                      </Link>
+                        <AnimatePresence initial={false}>
+                          {canToggleToc && isExpanded ? (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              {renderChapterHeadings({ chapter, closeMenu })}
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
+                      </div>
                     </li>
                   )
                 })}
@@ -171,7 +286,7 @@ export default function DocsTutorial() {
             </div>
           </aside>
 
-          {/* Mobile page outline (visible below xl) */}
+          {/* Mobile page header (visible below xl) */}
           <div className="xl:hidden mb-8 max-w-5xl mx-auto">
             <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.25em] mb-3 font-bold">
               {tutorial.meta.label} / {formatArchiveDate(tutorial.meta.date)}
@@ -179,48 +294,10 @@ export default function DocsTutorial() {
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight leading-[0.95] mb-6 break-words">
               {tutorial.meta.title}
             </h1>
-            {toc.headings.length > 0 ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileTocOpen((open) => !open)}
-                  className="theme-border theme-border-hover w-full flex items-center justify-between gap-3 px-4 py-3 border text-left"
-                  aria-expanded={isMobileTocOpen}
-                  aria-label="Toggle page outline"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.2em] mb-1">
-                      On This Page
-                    </div>
-                    <div className="font-bold text-base leading-tight truncate">
-                      {activeTocHeading?.text ?? 'Browse headings'}
-                    </div>
-                  </div>
-                  {isMobileTocOpen ? (
-                    <ChevronUp size={20} className="theme-text-muted shrink-0" />
-                  ) : (
-                    <ChevronDown size={20} className="theme-text-muted shrink-0" />
-                  )}
-                </button>
-                <AnimatePresence>
-                  {isMobileTocOpen ? (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="theme-border overflow-hidden border-x border-b"
-                    >
-                      <TableOfContents
-                        state={toc}
-                        className="block w-full px-4 py-4"
-                        title="Section Directory"
-                        sticky={false}
-                      />
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-              </>
+            {activeTocHeading ? (
+              <p className="theme-text-secondary font-mono text-xs leading-relaxed">
+                Current section: {activeTocHeading.text}
+              </p>
             ) : null}
           </div>
 

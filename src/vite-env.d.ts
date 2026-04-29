@@ -16,12 +16,19 @@ declare module 'virtual:blog-index' {
 }
 
 declare module 'virtual:docs-index' {
+  export interface TutorialHeadingMeta {
+    id: string
+    text: string
+    level: number
+  }
+
   export interface TutorialChapterMeta {
     slug: string
     title: string
     sidebarPosition: number
     excerpt: string
     importPath: string
+    headings: TutorialHeadingMeta[]
   }
 
   export interface TutorialMeta {

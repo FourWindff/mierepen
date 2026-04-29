@@ -8,6 +8,13 @@ export interface TutorialChapterMeta {
   sidebarPosition: number
   excerpt: string
   importPath: string
+  headings: TutorialHeadingMeta[]
+}
+
+export interface TutorialHeadingMeta {
+  id: string
+  text: string
+  level: number
 }
 
 export interface TutorialMeta {
