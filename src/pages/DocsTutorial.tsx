@@ -61,10 +61,6 @@ export default function DocsTutorial() {
     }
   }, [activeChapter?.slug, location.hash, toc.headings])
 
-  useEffect(() => {
-    setExpandedMobileChapterSlug(activeChapter?.slug ?? null)
-  }, [activeChapter?.slug])
-
   if (tutorialSlug && loadedSlug !== tutorialSlug) {
     return (
       <div className="theme-page min-h-screen flex items-center justify-center font-mono text-sm tracking-widest uppercase">
@@ -83,6 +79,10 @@ export default function DocsTutorial() {
 
   const ActiveChapter = activeChapter.Component
   const activeTocHeading = toc.headings.find((heading) => heading.id === toc.activeId) ?? toc.headings[0]
+  const handleMobileChapterNavigation = (closeMenu: () => void) => {
+    setExpandedMobileChapterSlug(null)
+    closeMenu()
+  }
 
   const renderChapterHeadings = ({
     chapter,
@@ -164,7 +164,7 @@ export default function DocsTutorial() {
                         <div className="flex items-stretch">
                           <Link
                             to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
-                            onClick={closeMenu}
+                            onClick={() => handleMobileChapterNavigation(closeMenu)}
                             className={`min-w-0 flex-1 px-3 py-3 ${
                               isActive ? 'theme-text-primary' : 'theme-text-secondary'
                             }`}
