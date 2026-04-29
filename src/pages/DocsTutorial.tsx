@@ -78,7 +78,6 @@ export default function DocsTutorial() {
   }
 
   const ActiveChapter = activeChapter.Component
-  const activeTocHeading = toc.headings.find((heading) => heading.id === toc.activeId) ?? toc.headings[0]
   const handleMobileChapterNavigation = (closeMenu: () => void) => {
     setExpandedMobileChapterSlug(null)
     closeMenu()
@@ -288,17 +287,14 @@ export default function DocsTutorial() {
 
           {/* Mobile page header (visible below xl) */}
           <div className="xl:hidden mb-8 max-w-5xl mx-auto">
-            <div className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.25em] mb-3 font-bold">
-              {tutorial.meta.label} / {formatArchiveDate(tutorial.meta.date)}
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight leading-[0.95] mb-6 break-words">
-              {tutorial.meta.title}
-            </h1>
-            {activeTocHeading ? (
-              <p className="theme-text-secondary font-mono text-xs leading-relaxed">
-                Current section: {activeTocHeading.text}
+            <div className="space-y-2">
+              <p className="theme-text-primary font-mono text-[10px] font-bold uppercase tracking-[0.25em] break-words leading-relaxed">
+                {tutorial.meta.title} / {activeChapter.title}
               </p>
-            ) : null}
+              <p className="theme-text-muted font-mono text-[10px] font-bold uppercase tracking-[0.25em] break-words leading-relaxed">
+                {formatArchiveDate(tutorial.meta.date)}
+              </p>
+            </div>
           </div>
 
           {/* Center: content */}
