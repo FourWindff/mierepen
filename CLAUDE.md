@@ -1,160 +1,86 @@
-# Project Style Guide
+# CLAUDE.md
 
-> Last updated: 2026-04-23
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Overview
+## Commands
 
-This is a personal blog/website built with React + Vite + Tailwind CSS v4. It features a dark, cyber-brutalist aesthetic with ASCII generative art and monospace typography.
+- `npm run dev` — Vite dev server (binds `0.0.0.0`, default port 5173).
+- `npm run build` — Type-checks (`tsc -b`) then bundles (`vite build`). Both must pass.
+- `npm run lint` — ESLint over `**/*.{ts,tsx}`.
+- `npm run preview` — Serve the built bundle.
 
-## Color Palette
+There is no test suite in this repo.
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| Background | `#080808` | Primary page background |
-| Surface | `white/[0.01]` to `white/[0.05]` | Elevated surfaces, cards, inputs |
-| Primary Text | `white` | Headings, primary content |
-| Secondary Text | `neutral-400` | Body text, descriptions |
-| Muted Text | `white/40`, `white/50` | Labels, metadata, captions |
-| Border | `white/5`, `white/10`, `white/20` | Dividers, card borders, hover states |
-| Accent | `neutral-300` | Hover states, secondary accents |
-| Selection | `bg-white text-black` | Text selection highlight |
+## Architecture
 
-### Opacity Scale (Borders/Surfaces)
-- `white/5` - Subtle dividers
-- `white/10` - Default borders, section borders
-- `white/20` - Emphasized borders, scrollbar, hover borders
-- `white/30` - Gradient overlays, secondary icons
-- `white/40` - ASCII art layers, labels
-- `white/50` - Primary labels, metadata
-- `white/70` - Gradient overlays
-- `white/80` - ASCII art foreground
+A personal blog/docs site (React 19 + Vite 8 + Tailwind v4 + MDX) with content authored as `.mdx` files outside `src/`. The non-obvious piece is the **build-time content index**.
 
-## Typography
+### Content pipeline (vite.config.ts)
 
-### Font Families
-- **Sans-serif**: `Inter` (weights: 400, 700, 900)
-- **Monospace**: `JetBrains Mono` (weights: 400, 700)
+Two custom Vite plugins synthesize virtual modules at build time:
 
-### Type Scale
+- **`virtual:blog-index`** — scans `blog/YYYY-MM-DD/index.mdx`, parses frontmatter with a hand-rolled regex (not gray-matter), exports `posts[]` and `postMap{}` sorted by date desc.
+- **`virtual:docs-index`** — scans `docs/<slug>/`, requires a `metadata.json` per tutorial and `<NN-name>.mdx` chapters with frontmatter (`title`, `sidebar_position`, `excerpt`). Uses `gray-matter`. Also extracts `##`–`######` headings at build time (skipping fenced code) for the TOC.
+- **`stripFrontmatterPlugin`** — runs `enforce: 'pre'` to strip `---...---` blocks before `@mdx-js/rollup` compiles each MDX file, since MDX itself doesn't parse frontmatter.
 
-| Element | Size | Weight | Tracking | Transform | Font |
-|---------|------|--------|----------|-----------|------|
-| Hero Title | `120px` | `black (900)` | `[-0.05em]` | `uppercase` | Sans |
-| H1 (Blog) | `text-5xl` to `text-6xl` | `black (900)` | `tight` | `uppercase` | Sans |
-| H2 (Section) | `text-4xl` | `bold (700)` | - | - | Sans |
-| H3 (Subsection) | `text-2xl` | `bold (700)` | - | - | Sans |
-| H4 (Card Title) | `text-xl` | `bold (700)` | - | - | Sans |
-| Body | `text-base` | `normal (400)` | - | - | Sans |
-| Body Small | `text-sm` | `normal (400)` | - | - | Sans |
-| Label/Metadata | `text-[10px]` | `bold (700)` | `[0.2em]` to `[0.3em]` | `uppercase` | Mono |
-| Mono Body | `text-xs` to `text-sm` | `normal (400)` | - | - | Mono |
-| ASCII Art | `text-[8px]` to `text-[10px]` | - | `leading-tight` | - | Mono |
+`virtual:blog-index` and `virtual:docs-index` types live in `src/vite-env.d.ts`. Runtime helpers in `src/lib/blog.ts` and `src/lib/docs.ts` combine the static index with `import.meta.glob` lazy loaders that return the MDX `default` component on demand. **Adding a new MDX file requires restarting the dev server** for the index plugins to re-scan.
 
-### Prose Styles (Blog Content)
-Blog content uses the `.prose-custom` class with these conventions:
-- Headings: tight line-height, generous top margin
-- Paragraphs: `neutral-400`, `leading-relaxed`
-- Links: white with underline, hover to `neutral-300`
-- Code: mono font, `white/10` background
-- Code blocks: `white/5` background, `white/10` border
-- Tables: uppercase mono headers with `white/20` border
-- Blockquotes: left border accent, italic
+### Routing
 
-## Spacing
+`src/App.tsx` defines all routes inline: `/`, `/blog/:slug`, `/docs/:tutorialSlug`, `/docs/:tutorialSlug/:chapterSlug`, `/archive`. `Home` is also defined in `App.tsx`. Page components live in `src/pages/`.
 
-### Container
-- Max width: `max-w-7xl` (80rem / 1280px)
-- Horizontal padding: `px-12` (3rem)
-- Centered with `mx-auto`
+### MDX rendering
 
-### Section Spacing
-- Vertical padding: `py-24` (6rem) for major sections
-- Content gap: `gap-12` (3rem) for grids
+`src/components/mdx/index.tsx` exports `mdxComponents` — the mapping passed as `components` when rendering an MDX `Component`. It overrides `pre`/`code` to route through the custom `CodeBlock` (Shiki-highlighted) and `InlineCode`, plus styled `blockquote`/`table`/`th`/`td`/`tr` and a `Callout` custom component usable inside MDX. `remark-gfm` is enabled.
 
-### Component Spacing
-- Card padding: `p-12` (3rem)
-- Input padding: `py-4` vertical
-- Border thickness: 1px (Tailwind default borders)
+### Theme system (important)
 
-## Layout Patterns
+The app supports **light and dark** themes (light is the default for `prefers-color-scheme: light`). Theme state lives in `ThemeProvider` (`src/lib/theme.tsx`) and toggles a `dark` class on `<html>`; selection is persisted to `localStorage` under `theme`.
 
-### Grid System
-- 12-column grid: `grid-cols-12` with `lg:col-span-*` breakpoints
-- Common splits: 4/8, 6/6, 1/1 (responsive)
-- Card grids: `md:grid-cols-2`, `lg:grid-cols-3`
+Styles use **`theme-*` utility classes defined in `src/index.css`** that read CSS variables declared in the Tailwind v4 `@theme` block. Examples: `theme-page`, `theme-surface`, `theme-surface-hover`, `theme-border`, `theme-border-strong`, `theme-text-primary`/`secondary`/`tertiary`/`soft`/`muted`/`dim`/`faint`, `theme-button-primary`, `theme-rule`. Each has a `html.dark` variant defined in the same file.
 
-### Border Conventions
-- Sections separated by `border-t border-white/10`
-- Side borders on contained sections: `border-x border-white/10`
-- Cards use `border-white/5` to `border-white/20` with hover transitions
+**Do not hardcode `text-white`, `text-black`, `bg-[#080808]`, or `border-white/10`** — use the `theme-*` primitives so both themes work. Tailwind utilities are fine for layout, sizing, typography, and one-off non-themed styling.
 
-### Z-Layering
-- Background ASCII art: `absolute inset-0` with `z-0` (implied)
-- Navigation: `relative z-10`
-- Gradient overlays: `absolute inset-0`
+The Tailwind v4 `@theme` block in `src/index.css` is the source of truth for color tokens; there is no `tailwind.config.js`.
 
-## Component Patterns
+## Authoring content
 
-### Navigation Items
-```
-text-sm uppercase tracking-[0.2em] font-bold text-white mix-blend-difference hover:opacity-70 transition-opacity
-```
+### Blog post
 
-### Section Labels
-```
-font-mono text-[10px] uppercase tracking-[0.3em] text-white/40 mb-16 font-bold text-center
-```
-
-### Cards
-- Background: `bg-[#080808]` or `bg-white/[0.01]`
-- Border: `border border-white/10`
-- Hover: `hover:bg-white/[0.05] hover:border-white transition-colors`
-- Inner padding: `p-12`
-
-### Inputs
-- Background: `bg-transparent`
-- Border: `border-b border-white/20`
-- Focus: `focus:border-white focus:outline-none transition-colors`
-- Font: `font-mono text-sm`
-
-### Buttons
-- Primary: `bg-white text-black font-black uppercase text-xs py-4 hover:bg-neutral-200 transition-colors tracking-[0.2em]`
-
-## Animation
-
-- Entrance animations use `motion/react` with `initial={{ opacity: 0, y: 20 }}` and `whileInView` triggers
-- Stagger delays: `idx * 0.1` for card grids
-- Hover transitions: `transition-colors`, `transition-opacity`, `transition-transform`
-- ASCII wave: 100ms interval animation
-
-## File Organization
+Create `blog/YYYY-MM-DD/index.mdx` with this frontmatter (all strings, manually parsed — keep the format simple):
 
 ```
-src/
-  App.tsx          # Main app with routing and home page
-  main.tsx         # Entry point
-  index.css        # Global styles, Tailwind theme, prose styles
-  pages/
-    BlogPost.tsx   # Blog post page
-  lib/
-    blog.ts        # Blog data fetching utilities
-  assets/          # Static assets
-
-blog/
-  YYYY-MM-DD/
-    index.mdx      # Blog post content with frontmatter
+---
+title: "..."
+date: "YYYY-MM-DD"
+author: "..."
+readTime: "5 min"
+category: "..."
+excerpt: "..."
+---
 ```
 
-### Style Organization Rules
-1. Global styles live in `src/index.css`
-2. Tailwind theme configuration is in CSS via `@theme` (Tailwind v4)
-3. Component styles use Tailwind utility classes inline
-4. Blog prose styles use the `.prose-custom` class in `index.css`
-5. No separate CSS modules or styled-components
+The directory name must match `/^\d{4}-\d{2}-\d{2}$/` and becomes the slug.
 
-## Dependencies
+### Tutorial
 
-- `tailwindcss` v4.2.4 with `@tailwindcss/vite`
-- `motion` v12.38.0 for animations
-- `lucide-react` v1.8.0 for icons
-- `@mdx-js/react` and `@mdx-js/rollup` for MDX support
+Create `docs/<slug>/`:
+- `metadata.json` with `title`, `summary`, `date`, `label` (all required, plus `chapters` derived from files).
+- One or more `<NN-name>.mdx` chapters with frontmatter `title`, `sidebar_position` (number, used for ordering), `excerpt`. Tutorials with zero valid chapters are skipped.
+
+Heading IDs for the TOC are derived from `## …` and deeper headings via lowercase + `\s+→-` + strip non-`[a-z0-9-]` (see `createHeadingId` in `vite.config.ts`). Avoid duplicate heading text within a chapter.
+
+## Style conventions
+
+- Monospace `font-mono` (JetBrains Mono) is used heavily for labels, metadata, and ASCII art; sans (`Inter`) for body and headings.
+- Section labels: `font-mono text-[10px] uppercase tracking-[0.3em] theme-text-muted font-bold`.
+- Container: `max-w-7xl mx-auto px-4 sm:px-6 lg:px-12`.
+- Major section padding: `py-24`. Card padding: `p-12` desktop / `p-6 sm:p-8` smaller.
+- Vertical section dividers: `border-x` + `border-t` with `theme-border` / `theme-border-subtle`.
+- Entrance animations use `motion/react` with `initial={{ opacity: 0, y: 20 }}` and `whileInView` triggers; stagger by `idx * 0.1`.
+
+## TypeScript / lint notes
+
+- `tsconfig.app.json` enables `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`, and `verbatimModuleSyntax` — type-only imports must use `import type`.
+- ESLint config (`eslint.config.js`) is flat config with `js.recommended`, `tseslint.recommended`, `react-hooks` recommended, and `react-refresh/vite`.
+- The `build` script runs `tsc -b` first; type errors fail the build.
