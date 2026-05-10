@@ -1,0 +1,304 @@
+---
+title: "数据准备与分块策略"
+sidebar_position: 3
+excerpt: "深入讲解 RAG 数据准备阶段：文档解析、文本清洗、分块策略的选择依据，以及元数据设计对检索效果的影响。"
+---
+
+# 数据准备与分块策略
+
+数据准备是 RAG 系统的地基。再优秀的检索算法和生成模型，如果输入数据本身质量低劣、结构混乱，也无法产出好的结果。这个阶段的核心任务是：**将原始异构数据转化为结构化、语义完整的文本片段**。
+
+## 文档解析
+
+原始数据以各种格式存在，解析的复杂度差异很大。
+
+### 纯文本
+Markdown、TXT、CSV 是最友好的格式，直接读取即可。但要注意编码问题（统一为 UTF-8）和换行符不一致（\n vs \r\n）。
+
+### PDF
+PDF 是最棘手的格式。它本质上是排版描述语言，而非结构化文档格式。
+
+**常见问题**：
+
+- **表格解析**：PDF 中的表格往往被解析为混乱的纯文本，列与列之间用空格对齐，提取后语义丢失。
+- **多栏布局**：学术论文常见的双栏布局，如果按阅读顺序提取，可能导致左右栏内容交错。
+- **页眉页脚**：重复的页眉页脚会污染文本，需要识别并去除。
+- **图片和图表**：PDF 中的图片需要 OCR 或图片描述才能利用。
+
+**常用工具**：
+
+| 工具 | 特点 | 适用场景 |
+|------|------|---------|
+| PyPDF2 / pdfplumber | 轻量，纯文本提取 | 简单文档 |
+| Unstructured | 支持表格、标题识别，结构丰富 | 复杂版式 |
+| Marker | 专门针对学术论文 PDF 优化 | 论文、技术文档 |
+| LlamaParse | 由 LLM 驱动，理解能力强 | 复杂表格和布局 |
+| Azure Document Intelligence | 企业级，支持发票、表单等模板 | 结构化文档 |
+
+### HTML / 网页
+
+网页包含大量非内容元素（导航栏、广告、页脚、侧边栏），需要过滤。
+
+```python
+# 使用 trafilatura 提取正文（去除导航、广告等噪声）
+import trafilatura
+
+downloaded = trafilatura.fetch_url("https://example.com/article")
+text = trafilatura.extract(downloaded, include_comments=False, include_tables=True)
+```
+
+**关键技巧**：
+
+- 使用 readability-lxml、trafilatura 等专门的正文提取库，而不是直接用 BeautifulSoup 抓取所有文本。
+- 保留标题层级信息（h1、h2、h3），这在后续分块时可以用来判断段落边界。
+- 对于包含代码块的文档，保留代码格式，因为代码缩进具有语义意义。
+
+### 数据库与 API
+
+从数据库或 API 获取的数据通常是结构化的，需要决定如何序列化为文本。
+
+```python
+# 将数据库记录转换为文本描述
+record = {
+    "product_name": "无线蓝牙耳机",
+    "price": 299,
+    "category": "数码配件",
+    "features": ["降噪", "30小时续航", "蓝牙5.3"]
+}
+
+text = f"""产品名称：{record['product_name']}
+所属类别：{record['category']}
+价格：{record['price']}元
+主要特性：{', '.join(record['features'])}
+"""
+```
+
+## 文本清洗
+
+解析后的文本通常需要进行清洗，去除噪声并规范化。
+
+**常见清洗操作**：
+
+```python
+def clean_text(text: str) -> str:
+    # 统一空白字符
+    text = re.sub(r'\s+', ' ', text)
+
+    # 去除零宽字符
+    text = text.replace('​', '').replace('﻿', '')
+
+    # 去除过短的行（通常是页码、章节标记等）
+    lines = [line.strip() for line in text.split('\n') if len(line.strip()) > 10]
+
+    # 去除连续重复的换行
+    text = '\n'.join(lines)
+
+    # 去除 URL（可选，视场景而定）
+    # text = re.sub(r'https?://\S+', '', text)
+
+    return text.strip()
+```
+
+**清洗的度需要把握**：
+
+- 过度清洗会丢失有价值的信息。例如，去除所有数字会丢失版本号、ID 等关键信息。
+- 代码中的注释和字符串内的特殊字符不应被清洗。
+- 保留必要的标点符号，它们携带语义信息。
+
+## 文档分块（Chunking）
+
+分块是数据准备中最关键的决策，它直接决定了检索的粒度。一个好的分块应该满足：**语义完整、信息密度适中、边界清晰**。
+
+### 为什么分块很重要
+
+嵌入模型有最大输入长度限制（通常 512 或 8192 token）。即使模型支持长文本，过长的文本也会导致关键信息被稀释（称为"中间丢失"问题）。
+
+同时，分块大小也影响检索精度：
+
+- **块太大**：包含大量无关信息，查询与块的相似度被稀释，召回的 Top-K 中可能混入不相关的块。
+- **块太小**：丢失上下文。例如，"它提供了出色的性能"——"它"指代什么？如果块太小，模型看不到前文。
+
+### 分块策略对比
+
+#### 1. 固定长度分块（Fixed-size Chunking）
+
+最简单的方法：按固定 token 数或字符数切分，可选设置重叠（overlap）。
+
+```python
+def fixed_size_chunk(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start = end - overlap
+    return chunks
+```
+
+**优点**：简单、均匀、容易实现。
+**缺点**：可能在句子或段落中间切断，破坏语义完整性。
+
+#### 2. 递归文本分块（Recursive Text Splitting）
+
+按层级分隔符切分：先尝试按段落（\n\n）切，如果段落还太长，再按句子（\n）切，最后按单词切。LangChain 的 `RecursiveCharacterTextSplitter` 就是这种方式。
+
+```python
+separators = ["\n\n", "\n", ". ", " ", ""]
+# 优先尝试大粒度的分隔符
+```
+
+**优点**：尽量保持语义边界（段落、句子）。
+**缺点**：块大小不均匀，某些块可能过短。
+
+#### 3. 按语义分块（Semantic Chunking）
+
+先按句子切分，计算相邻句子的嵌入向量相似度，在相似度骤降的位置切分——这通常意味着话题发生了转换。
+
+```python
+# 伪代码
+sentences = split_into_sentences(text)
+embeddings = [embed(s) for s in sentences]
+
+chunks = []
+current_chunk = [sentences[0]]
+
+for i in range(1, len(sentences)):
+    similarity = cosine_similarity(embeddings[i-1], embeddings[i])
+    if similarity < threshold:  # 话题转换
+        chunks.append(" ".join(current_chunk))
+        current_chunk = [sentences[i]]
+    else:
+        current_chunk.append(sentences[i])
+
+chunks.append(" ".join(current_chunk))
+```
+
+**优点**：切分点在语义边界，块内主题一致。
+**缺点**：计算成本高，阈值选择困难。
+
+#### 4. 结构化分块（Structure-aware Chunking）
+
+针对特定文档类型，利用文档本身的结构进行分块。
+
+- **Markdown**：按标题层级切分，每个块包含一个 h2 及其下属内容。
+- **代码**：按函数、类定义切分，每个块是一个完整的函数或类。
+- **HTML**：按 DOM 树的逻辑块（如 article、section）切分。
+
+```python
+def chunk_by_markdown_headers(markdown_text: str) -> list[dict]:
+    """按 Markdown 标题分块，每个块包含标题和所属内容"""
+    chunks = []
+    current_lines = []
+    current_header = None
+
+    for line in markdown_text.split('\n'):
+        if line.startswith('#'):
+            if current_lines:
+                chunks.append({
+                    "header": current_header,
+                    "content": '\n'.join(current_lines),
+                    "level": current_header.count('#') if current_header else 0
+                })
+            current_header = line.strip()
+            current_lines = []
+        else:
+            current_lines.append(line)
+
+    if current_lines:
+        chunks.append({
+            "header": current_header,
+            "content": '\n'.join(current_lines),
+            "level": current_header.count('#') if current_header else 0
+        })
+
+    return chunks
+```
+
+**优点**：利用文档天然结构，语义完整。
+**缺点**：需要针对每种文档类型定制解析逻辑。
+
+### 分块策略选择指南
+
+| 场景 | 推荐策略 | 块大小 | 重叠 |
+|------|---------|-------|------|
+| 通用文档 | 递归文本分块 | 300-500 token | 50-100 token |
+| FAQ / 问答对 | 按问题-答案对分块 | 每个 Q&A 一个块 | 0 |
+| 代码库 | 按函数/类分块 | 一个完整函数 | 0 |
+| 学术论文 | 按章节/段落分块 | 500-1000 token | 100 token |
+| 法律合同 | 按条款分块 | 一个条款 | 0 |
+
+<Callout type="info" title="分块大小的实验">
+  分块大小没有标准答案。最佳实践是：针对你的数据和查询类型，用真实问题做 A/B 测试。评估指标包括召回率、答案准确率和上下文利用率。
+</Callout>
+
+### 父文档检索（Parent Document Retrieval）
+
+一种进阶技巧：索引时使用小块（提高检索精度），但检索到小块后，将其对应的大块（父文档）作为上下文传给模型。
+
+```python
+# 构建索引时存储两种粒度
+small_chunks = chunk(text, size=200, overlap=20)   # 用于检索
+large_chunks = chunk(text, size=1000, overlap=100) # 用于生成
+
+# 建立 small → large 的映射关系
+for small in small_chunks:
+    parent = find_parent(small, large_chunks)
+    store_embedding(small.text, metadata={"parent_id": parent.id})
+
+# 检索时
+small_results = vector_search(query, top_k=5)
+contexts = [load_parent(r.metadata.parent_id) for r in small_results]
+```
+
+**优点**：兼顾检索精度（小块匹配更精准）和生成质量（大块提供更多上下文）。
+**缺点**：存储和索引成本翻倍，实现更复杂。
+
+## 元数据设计
+
+为每个文本片段附加元数据，不仅有助于检索后的来源追溯，还可以在检索时做前置过滤。
+
+**常见的元数据字段**：
+
+```python
+chunk_metadata = {
+    "source": "user-guide-v2.pdf",      # 来源文档
+    "page": 42,                        # 页码
+    "chapter": "安装与配置",            # 章节标题
+    "doc_type": "pdf",                 # 文档类型
+    "created_at": "2026-01-15",        # 创建时间
+    "category": "技术文档",             # 分类
+    "language": "zh",                  # 语言
+    "chunk_index": 15,                 # 在文档中的序号
+    "total_chunks": 120,               # 文档总块数
+}
+```
+
+**元数据的用途**：
+
+1. **来源追溯**：生成回答时标注引用来源，如"根据《用户指南》第 42 页..."
+2. **前置过滤**：在向量搜索前，先用元数据过滤缩小范围。例如，用户问"最近的产品更新"，可以只检索 created_at 在近三个月内的片段。
+3. **去重**：通过 source + chunk_index 识别重复内容。
+4. **权限控制**：结合用户权限，只检索用户有权访问的文档片段。
+
+<Callout type="warning" title="元数据一致性">
+  元数据 schema 一旦确定，应尽量保持稳定。如果后续添加新字段，需要处理旧数据缺失该字段的情况。建议在写入时提供默认值。
+</Callout>
+
+## 数据质量检查清单
+
+在数据准备阶段结束时，建议运行以下检查：
+
+- [ ] 所有文档是否都成功解析，没有空内容或乱码？
+- [ ] 分块大小分布是否合理，没有过长或过短的异常块？
+- [ ] 关键文档结构（标题、列表、代码块）是否在分块后保持完整？
+- [ ] 元数据是否完整且格式一致？
+- [ ] 是否存在大量重复内容（如每页都出现的页眉页脚）？
+- [ ] 是否保留了足够的上下文，使得单个块可以被独立理解？
+
+## 小结
+
+- 数据准备的质量决定了 RAG 系统的上限。
+- 文档解析需要针对不同格式选择合适工具，PDF 是最难处理的格式。
+- 分块策略的选择需要权衡语义完整性和检索粒度，没有放之四海而皆准的方案。
+- 元数据设计不仅影响可追溯性，还能显著提升检索效率。
+- 父文档检索是提升效果的常用技巧，但会增加系统复杂度。

@@ -1,0 +1,335 @@
+---
+title: "检索策略"
+sidebar_position: 5
+excerpt: "详解向量检索、关键词检索、混合搜索、重排序等技术，以及如何根据查询特点选择最优的检索组合策略。"
+---
+
+# 检索策略
+
+检索是 RAG 系统中最关键的环节——检索质量直接决定了生成质量的上限。本章深入讲解各种检索策略的原理、适用场景和组合方法。
+
+## 基础向量检索
+
+最基础的检索方式是：将查询编码为向量，在向量索引中寻找最相似的文档向量。
+
+```python
+def basic_vector_retrieval(query: str, index, embedding_model, top_k: int = 5):
+    query_vector = embedding_model.encode(query)
+    results = index.search(query_vector, top_k=top_k)
+    return results
+```
+
+这种方式简单直接，但存在明显局限：
+
+- **语义漂移**：用户的查询表达与文档表达可能存在差异。例如用户问"怎么修电脑"，文档写的是"计算机故障排除指南"。
+- **关键词敏感**：对于包含专有名词、型号、ID 的查询，纯向量检索可能失败。例如查询"iPhone 15 Pro Max 的电池容量"，向量可能更关注"电池"而不是"iPhone 15 Pro Max"。
+- **多义性**："苹果"可以指水果或公司，向量检索可能返回不相关的结果。
+
+## 混合搜索（Hybrid Search）
+
+混合搜索同时运行向量搜索和关键词搜索（如 BM25），然后将两者的结果融合。
+
+### 为什么需要混合搜索
+
+向量搜索擅长捕捉语义相似性，关键词搜索擅长精确匹配。两者互补：
+
+| 查询类型 | 向量搜索 | 关键词搜索 |
+|---------|---------|-----------|
+| "怎么提高工作效率" | ✅ 语义匹配 | ⚠️ 可能漏掉同义表达 |
+| "Python 3.12 新特性" | ⚠️ 版本号语义弱 | ✅ 精确匹配版本号 |
+| "error code 0x80070005" | ❌ 完全失效 | ✅ 精确匹配错误码 |
+| "这篇论文的主要贡献" | ✅ 语义匹配 | ⚠️ 可能返回所有含"贡献"的文档 |
+
+### RRF 融合算法
+
+Reciprocal Rank Fusion（RRF）是最常用的结果融合方法。
+
+```python
+def reciprocal_rank_fusion(vector_results, keyword_results, k=60):
+    """
+    将两个排序列表融合为一个排序列表。
+    k 是平滑参数，通常取 60。
+    """
+    scores = {}
+
+    for rank, doc in enumerate(vector_results):
+        doc_id = doc.id
+        scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank + 1)
+
+    for rank, doc in enumerate(keyword_results):
+        doc_id = doc.id
+        scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank + 1)
+
+    # 按分数降序排序
+    sorted_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return [doc_id for doc_id, _ in sorted_docs]
+```
+
+**原理**：每个结果列表中的第 n 个结果获得 `1/(k+n)` 分，出现在多个列表中的文档分数累加。这样，在两个列表中都排名靠前的文档会获得最高总分。
+
+### 加权融合
+
+也可以给两种搜索分配权重：
+
+```python
+def weighted_fusion(vector_results, keyword_results, vector_weight=0.7, keyword_weight=0.3):
+    scores = {}
+
+    for rank, doc in enumerate(vector_results):
+        scores[doc.id] = scores.get(doc.id, 0) + vector_weight / (rank + 1)
+
+    for rank, doc in enumerate(keyword_results):
+        scores[doc.id] = scores.get(doc.id, 0) + keyword_weight / (rank + 1)
+
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+```
+
+权重选择取决于查询类型和领域特点。通用场景通常向量权重更高（0.7-0.8），技术文档场景可以平衡一些（0.5-0.6）。
+
+### 实现混合搜索
+
+不同数据库的混合搜索支持：
+
+```python
+# Weaviate 原生支持混合搜索
+results = client.query.get("Document", ["content"])\
+    .with_hybrid_query("用户查询", alpha=0.75)\
+    .with_limit(10)\
+    .do()
+
+# Qdrant 支持稀疏向量（SPLADE）
+results = client.search(
+    collection_name="my_docs",
+    query_vector=dense_vector,      # 密集向量
+    sparse_vector=sparse_vector,    # 稀疏向量（关键词）
+    limit=10
+)
+
+# pgvector + pg_search（或手动实现 BM25）
+# 分别运行向量搜索和全文搜索，然后在应用层用 RRF 融合
+```
+
+## 重排序（Reranking）
+
+第一阶段的双编码器检索追求速度，但精度有限。重排序使用更精确的模型对候选结果进行精排。
+
+### 交叉编码器（Cross-Encoder）
+
+交叉编码器将查询和文档拼接后一起输入模型，计算相关性分数。这种方式让查询和文档在编码时直接交互，精度远高于双编码器。
+
+```
+双编码器（第一阶段）：
+查询 ──→ [Encoder] ──→ 向量 ──┐
+                              ├──→ 相似度
+文档 ──→ [Encoder] ──→ 向量 ──┘
+
+交叉编码器（第二阶段）：
+[查询] + [SEP] + [文档] ──→ [Cross-Encoder] ──→ 相关性分数 (0-1)
+```
+
+### 典型两阶段检索流程
+
+```python
+def two_stage_retrieval(query: str, index, top_k: int = 5):
+    # 第一阶段：双编码器快速召回（候选池大）
+    query_vector = bi_encoder.encode(query)
+    candidates = index.search(query_vector, top_k=100)
+
+    # 第二阶段：交叉编码器精排
+    pairs = [(query, doc.content) for doc in candidates]
+    scores = cross_encoder.predict(pairs)
+
+    # 按分数排序，取 Top-K
+    for doc, score in zip(candidates, scores):
+        doc.relevance_score = score
+
+    return sorted(candidates, key=lambda d: d.relevance_score, reverse=True)[:top_k]
+```
+
+### 常用重排序模型
+
+| 模型 | 特点 | 适用场景 |
+|------|------|---------|
+| Cohere Rerank | API 调用，效果优秀 | 商业项目，预算充足 |
+| BGE-Reranker | 开源，中文效果好 | 中文场景，自托管 |
+| Jina Reranker | 轻量，多语言 | 多语言场景 |
+| MonoT5 | 学术经典 | 研究、自定义需求 |
+
+### 重排序的成本权衡
+
+交叉编码器的计算成本远高于双编码器。每次重排序需要一次完整的模型前向传播。
+
+| 方案 | 延迟 | 精度 | 适用场景 |
+|------|------|------|---------|
+| 仅向量检索 | 低 | 中 | 延迟敏感、精度要求不高 |
+| 向量 + 重排序 Top-100 | 中 | 高 | 大多数生产场景 |
+| 向量 + 重排序 Top-1000 | 高 | 很高 | 精度优先、可接受延迟 |
+
+<Callout type="info" title="延迟优化">
+  如果延迟是关键约束，可以考虑：
+  1. 减少重排序候选数量（如 Top-50 而非 Top-100）
+  2. 使用更小的重排序模型
+  3. 对高频查询缓存重排序结果
+  4. 并行执行多个查询的重排序
+</Callout>
+
+## 查询改写与扩展
+
+原始查询往往不够精确，通过改写可以显著提升检索效果。
+
+### HyDE（Hypothetical Document Embeddings）
+
+对于简短的问题，直接用它去检索效果不佳。HyDE 的思路是：让模型先根据问题生成一个假想的答案文档，然后用这个假想文档去检索。
+
+```python
+defhyde_retrieval(query: str, llm, embedding_model, index):
+    # 生成假想文档
+    hypothetical_doc = llm.generate(
+        f"请根据以下问题，写一段可能包含答案的文档内容。\n问题：{query}"
+    )
+
+    # 用假想文档做检索
+    query_vector = embedding_model.encode(hypothetical_doc)
+    return index.search(query_vector, top_k=5)
+```
+
+**适用场景**：问题很短（如"什么是 RAG？"），但答案应该是一段详细的解释。
+**注意**：如果 LLM 生成了错误信息，HyDE 可能反而降低效果。需要权衡使用。
+
+### 多查询生成
+
+让模型从不同角度重写问题，分别检索，然后合并结果。
+
+```python
+def multi_query_retrieval(query: str, llm, embedding_model, index):
+    # 生成多个查询变体
+    prompt = f"""请从 3 个不同角度重写以下问题，帮助更全面地检索相关信息。
+问题：{query}
+
+要求：
+- 每个角度关注问题的不同方面
+- 保持问题的核心意图不变
+- 用中文回答"""
+
+    variations = llm.generate(prompt).split('\n')
+    variations = [v.strip('- ') for v in variations if v.strip()]
+    variations.append(query)  # 保留原始查询
+
+    # 去重后分别检索
+    all_results = []
+    seen_ids = set()
+    for q in set(variations):
+        vector = embedding_model.encode(q)
+        results = index.search(vector, top_k=5)
+        for r in results:
+            if r.id not in seen_ids:
+                all_results.append(r)
+                seen_ids.add(r.id)
+
+    # 用 RRF 融合
+    return rerank_with_rrf(all_results)
+```
+
+**适用场景**：复杂问题包含多个子问题，或用户对同一概念使用不同术语。
+
+### 查询分解
+
+对于需要多步推理的复杂问题，将其分解为多个子问题分别检索。
+
+```python
+# 用户问题："2025年推出的大语言模型中，哪家公司的模型在代码能力评测中得分最高？"
+# 分解为：
+# 1. "2025年推出了哪些大语言模型？"
+# 2. "这些模型在代码能力评测中的得分分别是多少？"
+# 3. "哪家公司的模型得分最高？"
+```
+
+## 元数据过滤与预过滤
+
+在向量搜索之前，先用元数据条件缩小搜索范围。
+
+```python
+# 用户问："最近的产品更新"
+# 先按时间过滤，再向量搜索
+results = index.search(
+    query_vector,
+    filter={"created_at": {"gte": "2026-02-01"}},
+    top_k=10
+)
+
+# 用户问："Python 教程中关于装饰器的内容"
+# 先按类别过滤
+results = index.search(
+    query_vector,
+    filter={"category": "Python", "doc_type": "tutorial"},
+    top_k=10
+)
+```
+
+**过滤策略**：
+
+- 如果过滤条件可以显著缩小范围（如从百万级到千级），先过滤再向量搜索效率更高。
+- 如果过滤条件很宽松（如只过滤掉 10% 的数据），过滤的收益有限，反而可能增加复杂度。
+- 注意某些数据库对复杂过滤的支持有限，查询计划可能退化为全表扫描。
+
+## 上下文压缩
+
+检索到的文档片段可能包含大量与查询无关的内容。上下文压缩技术只保留最相关的部分。
+
+```python
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMChainExtractor
+
+# 使用 LLM 压缩：只保留与查询相关的句子
+compressor = LLMChainExtractor.from_llm(llm)
+compression_retriever = ContextualCompressionRetriever(
+    base_compressor=compressor,
+    base_retriever=vector_retriever
+)
+
+compressed_docs = compression_retriever.get_relevant_documents("用户查询")
+```
+
+**替代方案**：使用更简单的句子级重排序，只保留 Top-N 个最相关的句子。
+
+```python
+def sentence_level_rerank(query: str, doc: str, top_n: int = 3):
+    sentences = split_into_sentences(doc)
+    query_vector = embedding_model.encode(query)
+
+    scored_sentences = []
+    for sent in sentences:
+        sent_vector = embedding_model.encode(sent)
+        similarity = cosine_similarity(query_vector, sent_vector)
+        scored_sentences.append((sent, similarity))
+
+    scored_sentences.sort(key=lambda x: x[1], reverse=True)
+    return [s[0] for s in scored_sentences[:top_n]]
+```
+
+## 检索策略选择决策树
+
+```
+查询是否包含专有名词/代码/ID？
+├── 是 → 使用混合搜索（向量 + BM25）
+│        └── 需要更高精度？
+│              ├── 是 → 添加重排序
+│              └── 否 → 基础混合搜索
+│
+└── 否 → 纯向量搜索是否召回足够？
+         ├── 是 → 需要更高精度？
+         │        ├── 是 → 添加重排序
+         │        └── 否 → 基础向量搜索
+         └── 否 → 查询是否过短？
+                  ├── 是 → 尝试 HyDE
+                  └── 否 → 尝试多查询生成
+```
+
+## 小结
+
+- 向量检索是基础，但对关键词和精确匹配支持不佳。
+- 混合搜索（向量 + 关键词）通过 RRF 融合，是生产环境的标准配置。
+- 重排序（交叉编码器）能显著提升精度，但需要权衡延迟成本。
+- 查询改写（HyDE、多查询）能弥补用户查询表达与文档表达的差距。
+- 元数据过滤应在能显著缩小范围时使用，避免无效的过滤开销。
+- 上下文压缩能减少生成阶段的噪声，但增加了额外计算。

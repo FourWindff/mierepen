@@ -1,0 +1,380 @@
+---
+title: "答案生成"
+sidebar_position: 6
+excerpt: "深入讲解 RAG 的生成阶段：提示工程、上下文窗口管理、引用生成、幻觉控制，以及如何设计可靠的生成流程。"
+---
+
+# 答案生成
+
+检索阶段找到了相关的文档片段，但如何将这些信息转化为高质量、可信的回答，是生成阶段的核心挑战。本章讲解提示工程、上下文管理和幻觉控制的关键技术。
+
+## 提示工程基础
+
+提示（Prompt）是连接检索结果与大语言模型的桥梁。一个好的 RAG 提示需要完成三个任务：
+
+1. **明确定义角色和任务**：告诉模型它应该扮演什么角色，执行什么任务。
+2. **提供约束条件**：明确回答的边界，比如"只基于提供的资料回答"。
+3. **结构化输入**：将检索到的文档以清晰、一致的格式呈现。
+
+### 经典 RAG 提示模板
+
+```
+你是一个专业的信息助手。你的任务是基于提供的参考资料，准确、简洁地回答用户的问题。
+
+## 规则
+- 严格基于提供的参考资料回答，不要引入参考资料之外的知识。
+- 如果参考资料中没有足够的信息，明确回答"根据现有资料无法回答该问题"。
+- 回答时标注信息来源，格式为 [1]、[2] 等。
+- 保持客观，不要添加个人观点。
+- 如果问题涉及多个方面，请分点回答。
+
+## 参考资料
+{context}
+
+## 用户问题
+{query}
+
+## 回答
+```
+
+### 结构化上下文
+
+将检索结果以结构化方式呈现，帮助模型更好地理解：
+
+```
+参考资料：
+
+[1] 来源：《Python 高级编程》第 3 章
+内容：上下文管理器（Context Manager）是 Python 中用于管理资源的对象，通过 __enter__ 和 __exit__ 方法实现...
+
+[2] 来源：Python 官方文档
+内容：with 语句用于包装由上下文管理器定义的代码块的执行...
+
+[3] 来源：Stack Overflow 回答
+内容：自定义上下文管理器可以通过装饰器 @contextmanager 简化实现...
+```
+
+**关键设计点**：
+
+- 每个片段有唯一编号，方便模型引用。
+- 标注来源信息，增强可信度。
+- 保留片段之间的分隔，避免模型混淆不同来源的内容。
+
+## 上下文窗口管理
+
+大语言模型有最大输入长度限制。如何将最有价值的信息塞入有限的窗口，是工程上的核心问题。
+
+### 上下文长度限制
+
+| 模型 | 上下文长度 | RAG 可用空间 |
+|------|-----------|-------------|
+| GPT-4o-mini | 128K | ~100K（扣除系统提示和输出空间） |
+| GPT-4o | 128K | ~100K |
+| Claude 3.5 Sonnet | 200K | ~150K |
+| Claude 3.7 Sonnet | 200K | ~150K |
+| DeepSeek-V3 | 64K | ~50K |
+| Qwen2.5-72B | 128K | ~100K |
+
+"中间丢失"（Lost in the Middle）现象：模型对上下文中间部分的信息关注度低于开头和结尾。这意味着，即使上下文在长度限制内，关键信息放在中间也可能被忽略。
+
+### 上下文优化策略
+
+#### 1. 相关性排序
+
+将最相关的文档片段放在上下文的开头和结尾，次相关的放中间。
+
+```python
+def optimize_context_order(docs, query):
+    # 按相关性分数排序
+    sorted_docs = sorted(docs, key=lambda d: d.score, reverse=True)
+
+    # 将 Top-2 放在开头，接下来的放中间，最后再放一个相关度高的
+    optimized = [sorted_docs[0]]
+    if len(sorted_docs) > 1:
+        optimized.extend(sorted_docs[2:-1] if len(sorted_docs) > 3 else [])
+        optimized.append(sorted_docs[1])
+
+    return optimized
+```
+
+#### 2. 上下文压缩
+
+如果检索到的片段太长，只保留最相关的部分。
+
+```python
+def compress_context(docs, query, max_tokens=4000):
+    compressed = []
+    total_tokens = 0
+
+    for doc in docs:
+        # 提取文档中最相关的句子
+        relevant_sentences = extract_relevant_sentences(doc.content, query, top_n=3)
+        compressed_text = " ".join(relevant_sentences)
+        tokens = count_tokens(compressed_text)
+
+        if total_tokens + tokens > max_tokens:
+            break
+
+        compressed.append({**doc, "content": compressed_text})
+        total_tokens += tokens
+
+    return compressed
+```
+
+#### 3. 分层上下文
+
+对于复杂问题，先让模型浏览所有片段的摘要，再针对最相关的片段做深入阅读。
+
+```python
+# 第一步：生成每个片段的摘要
+summaries = [generate_summary(doc.content) for doc in docs]
+
+# 第二步：让模型根据摘要选择最相关的片段编号
+selection_prompt = f"""以下是对多个文档片段的摘要。请选出与问题最相关的 3 个片段编号。
+
+摘要：
+{format_summaries(summaries)}
+
+问题：{query}
+
+最相关的片段编号："""
+
+selected_indices = parse_selection(llm.generate(selection_prompt))
+selected_docs = [docs[i] for i in selected_indices]
+
+# 第三步：用完整内容生成答案
+answer = generate_answer(selected_docs, query)
+```
+
+## 引用生成
+
+让模型在回答中标注信息来源，是提升可信度和可追溯性的关键。
+
+### 基础引用
+
+```
+参考资料：
+[1] 2025年全球人工智能市场规模达到 5000 亿美元...
+[2] 中国在 AI 专利申请数量上位居世界第二...
+[3] 机器学习在医疗诊断中的准确率提升至 95%...
+
+用户问题：2025 年 AI 市场规模是多少？
+
+模型回答：根据 [1]，2025 年全球人工智能市场规模达到了 5000 亿美元。
+```
+
+### 引用格式设计
+
+```python
+def format_context_with_citations(docs):
+    """为每个文档片段生成结构化引用信息"""
+    lines = []
+    for i, doc in enumerate(docs, 1):
+        citation = f"""[{i}] {doc.metadata.get('title', '未知来源')}
+    章节：{doc.metadata.get('chapter', 'N/A')}
+    页码：{doc.metadata.get('page', 'N/A')}
+    内容：{doc.content}
+"""
+        lines.append(citation)
+    return "\n".join(lines)
+```
+
+模型输出示例：
+
+```
+RAG（检索增强生成）是一种将外部知识检索与大语言模型相结合的架构 [1]。
+它通过先从知识库中检索相关文档，再将这些文档作为上下文提供给模型来生成回答 [2]。
+这种方式可以显著降低模型的幻觉问题 [3]。
+```
+
+### 引用验证
+
+模型有时会编造引用（引用了一个编号但内容并不支持该说法）。可以通过后处理验证：
+
+```python
+def verify_citations(answer, docs):
+    """检查回答中的引用是否真实存在于文档中"""
+    import re
+
+    cited_indices = set(re.findall(r'\[(\d+)\]', answer))
+    verified = []
+
+    for idx in cited_indices:
+        doc = docs[int(idx) - 1]
+        # 检查回答中引用该编号附近的内容是否出现在文档中
+        # 简化为检查关键词重叠
+        answer_context = extract_context_around_citation(answer, idx)
+        if has_keyword_overlap(answer_context, doc.content):
+            verified.append(idx)
+        else:
+            print(f"警告：引用 [{idx}] 可能不准确")
+
+    return verified
+```
+
+## 幻觉控制
+
+即使有了 RAG，幻觉仍然可能发生。以下是多层防护策略。
+
+### 第一层：系统提示约束
+
+在系统提示中明确约束模型的行为边界。
+
+```
+你是一个严谨的信息助手。请严格遵守以下规则：
+
+1. 你只拥有"参考资料"中提供的信息，除此之外你没有其他知识。
+2. 如果参考资料不足以回答问题，你必须回答"根据现有资料无法回答"。
+3. 不要在回答中添加参考资料中没有的事实、数据或观点。
+4. 不要使用"可能""也许"来猜测未提供的信息。
+5. 如果用户的问题与参考资料无关，礼貌地说明无法回答。
+```
+
+### 第二层：自我验证（Self-Check）
+
+让模型在生成回答后，自我检查是否有幻觉。
+
+```python
+def self_check(answer, context, query):
+    check_prompt = f"""请检查以下回答是否符合"参考资料"中的内容。
+
+参考资料：
+{context}
+
+用户问题：{query}
+
+生成的回答：
+{answer}
+
+请逐句检查：
+1. 回答中的每个事实是否都能在参考资料中找到支持？
+2. 是否有参考资料中没有的信息被添加了？
+3. 是否有与参考资料矛盾的内容？
+
+请输出：
+- 有问题的事实（如有）
+- 修改后的准确回答"""
+
+    return llm.generate(check_prompt)
+```
+
+### 第三层：事实核查（Faithfulness）
+
+使用专门的评估模型或规则来判断回答是否忠于检索到的文档。
+
+```python
+from sentence_transformers import CrossEncoder
+
+faithfulness_model = CrossEncoder('cross-encoder/nli-deberta-v3-base')
+
+def check_faithfulness(answer, context):
+    """
+    使用 NLI（自然语言推理）模型判断回答是否被上下文蕴含。
+    返回 entailment（蕴含）、contradiction（矛盾）、neutral（中性）
+    """
+    pairs = [(context, answer)]
+    scores = faithfulness_model.predict(pairs)
+    label = ['contradiction', 'entailment', 'neutral'][scores.argmax()]
+    return label
+```
+
+### 第四层：拒绝回答
+
+当检索结果明显不相关时，直接拒绝回答比编造答案更好。
+
+```python
+def should_refuse(query, retrieved_docs, threshold=0.5):
+    """如果检索结果与查询的相关性都低于阈值，则拒绝回答"""
+    max_similarity = max(doc.score for doc in retrieved_docs)
+    if max_similarity < threshold:
+        return True, "抱歉，我没有找到与您问题相关的资料。"
+    return False, None
+```
+
+## 流式生成与用户体验
+
+对于交互式应用，流式输出能显著提升用户体验。
+
+```python
+import openai
+
+def stream_rag_answer(query, context):
+    prompt = build_rag_prompt(query, context)
+
+    stream = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        stream=True
+    )
+
+    for chunk in stream:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+
+# 前端逐字显示
+for token in stream_rag_answer(query, context):
+    print(token, end="", flush=True)
+```
+
+## 多轮对话中的上下文管理
+
+在对话场景中，需要维护对话历史并决定何时重新检索。
+
+```python
+class ConversationalRAG:
+    def __init__(self):
+        self.history = []
+
+    def answer(self, user_message: str) -> str:
+        # 判断是否需要重新检索
+        if self.needs_retrieval(user_message):
+            # 用完整对话历史做检索（而不仅是当前消息）
+            search_query = self.build_search_query(user_message)
+            docs = retrieve(search_query)
+        else:
+            # 沿用上一轮检索结果
+            docs = self.last_retrieved_docs
+
+        # 构建包含对话历史的提示
+        prompt = self.build_chat_prompt(
+            history=self.history,
+            current_query=user_message,
+            retrieved_docs=docs
+        )
+
+        answer = llm.generate(prompt)
+
+        # 更新历史
+        self.history.extend([
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": answer}
+        ])
+
+        return answer
+
+    def needs_retrieval(self, message: str) -> bool:
+        """判断新消息是否需要重新检索"""
+        # 简单启发式：如果消息包含新的实体或话题关键词
+        # 更复杂的方式：用模型判断是否与当前话题一致
+        return True  # 保守策略：每次都检索
+```
+
+## 生成参数调优
+
+| 参数 | 作用 | RAG 推荐值 |
+|------|------|-----------|
+| temperature | 控制随机性 | 0.0 - 0.3（追求确定性） |
+| top_p | 核采样 | 0.9 - 1.0 |
+| max_tokens | 最大输出长度 | 根据回答复杂度调整 |
+| presence_penalty | 重复惩罚 | 0 - 0.5（避免重复引用） |
+| frequency_penalty | 频率惩罚 | 0 - 0.3 |
+
+RAG 场景通常使用较低 temperature，因为回答应该基于事实而非创造性发挥。
+
+## 小结
+
+- 提示模板需要明确定义角色、约束和输入格式，引用编号要清晰一致。
+- 上下文窗口有限，需要通过排序优化、压缩和分层策略最大化利用。
+- 引用生成增强可信度，但需要验证机制防止模型编造引用。
+- 幻觉控制需要多层防护：系统提示约束、自我验证、事实核查和拒绝回答。
+- 流式输出和多轮对话管理是提升用户体验的关键工程细节。
