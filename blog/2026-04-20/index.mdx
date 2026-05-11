@@ -43,6 +43,20 @@ variation = hash(seed) % max_variation
 
 This deterministic approach ensures the same element always renders consistently for the same user, while different elements exhibit natural variation.
 
+## Code Example
+
+Here is a practical example of a configuration file:
+
+```js title="docusaurus.config.js"
+export default function configCreator() {
+  return {
+    title: 'Docusaurus',
+    url: 'https://docusaurus.io',
+    // your site config ...
+  };
+}
+```
+
 ## The Balance
 
 Too much entropy creates chaos. Too little creates monotony. The sweet spot lies in variation so subtle that users feel the difference without being able to name it — interfaces that feel alive rather than manufactured.

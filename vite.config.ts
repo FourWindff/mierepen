@@ -3,10 +3,40 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from '@mdx-js/rollup'
 import remarkGfm from 'remark-gfm'
+import { visit } from 'unist-util-visit'
+import type { Node } from 'unist'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import matter from 'gray-matter'
+
+interface CodeNode extends Node {
+  type: 'code'
+  lang?: string
+  meta?: string
+  value: string
+  data?: {
+    hProperties?: Record<string, string | string[]>
+  }
+}
+
+function remarkCodeTitle() {
+  return (tree: Node) => {
+    visit(tree, 'code', (node: CodeNode) => {
+      if (!node.meta) return
+      const titleMatch = node.meta.match(/title=["']([^"']+)["']/)
+      if (!titleMatch) return
+      const title = titleMatch[1]
+      node.data = node.data || {}
+      node.data.hProperties = node.data.hProperties || {}
+      const existingClass = node.data.hProperties.className
+      const baseClass = Array.isArray(existingClass)
+        ? existingClass.join(' ')
+        : (existingClass as string) || `language-${node.lang || 'text'}`
+      node.data.hProperties.className = `${baseClass} title="${title}"`
+    })
+  }
+}
 
 const virtualBlogIndexId = 'virtual:blog-index'
 const resolvedVirtualBlogIndexId = '\0' + virtualBlogIndexId
@@ -266,7 +296,7 @@ export default defineConfig({
     blogIndexPlugin(),
     docsIndexPlugin(),
     stripFrontmatterPlugin(),
-    { enforce: 'pre', ...mdx({ remarkPlugins: [remarkGfm] }) },
+    { enforce: 'pre', ...mdx({ remarkPlugins: [remarkGfm, remarkCodeTitle] }) },
     react(),
     tailwindcss(),
   ],

@@ -523,3 +523,50 @@ html.dark .theme-button-toggle-idle:hover {
 .dark .prose-custom strong {
   @apply text-white;
 }
+
+/* Shiki syntax highlighting overrides */
+.shiki {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-x: auto;
+  /* Override Shiki theme background to use theme-adaptive colors */
+  background: transparent !important;
+  color: #24292e !important;
+}
+
+html.dark .shiki {
+  color: #e0e0e0 !important;
+}
+
+.shiki code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Code block background - theme adaptive */
+.code-block-bg {
+  background: color-mix(in srgb, var(--color-bg-primary) 96%, white);
+}
+
+html.dark .code-block-bg {
+  background: #1a1a1a;
+}
+
+.shiki .line {
+  display: block;
+}
+
+/* Ensure Shiki themes don't clash with Tailwind pre resets */
+.prose-custom .shiki {
+  margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+}
