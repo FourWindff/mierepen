@@ -4,6 +4,7 @@ import Callout from './Callout'
 import InlineCode from './InlineCode'
 import Blockquote from './Blockquote'
 import Table from './Table'
+import Collapse from './Collapse'
 
 interface CodeChildProps {
   className?: string
@@ -50,4 +51,5 @@ export const mdxComponents = {
   ),
   // Custom components
   Callout,
+  Collapse,
 }
