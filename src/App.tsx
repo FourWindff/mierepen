@@ -313,6 +313,7 @@ export default function App() {
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/docs/:tutorialSlug" element={<DocsTutorial />} />
         <Route path="/docs/:tutorialSlug/:chapterSlug" element={<DocsTutorial />} />
+        <Route path="/docs/:tutorialSlug/:groupSlug/:chapterSlug" element={<DocsTutorial />} />
         <Route path="/archive" element={<Archive />} />
       </Routes>
     </>
