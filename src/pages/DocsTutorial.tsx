@@ -449,9 +449,7 @@ function GroupedSidebar({
       {/* Groups */}
       {tutorial.groups.map((group) => {
         const isExpanded = expandedGroups.has(group.slug)
-        const isGroupActive =
-          group.chapters.some((c) => c.slug === activeChapter.slug) ||
-          activeChapter.slug === group.slug
+        const isGroupActive = activeChapter.slug === group.slug
 
         return (
           <div key={group.slug} className="mt-2">
