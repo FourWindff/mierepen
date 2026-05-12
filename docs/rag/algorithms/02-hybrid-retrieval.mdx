@@ -1,0 +1,279 @@
+---
+title: "混合检索"
+sidebar_position: 2
+excerpt: "向量检索与关键词检索的融合：BM25 原理、稀疏向量、以及 Reciprocal Rank Fusion 等融合策略。"
+---
+
+# 混合检索
+
+纯向量检索有一个致命弱点：它不擅长匹配**精确的关键词**。用户问"Python 3.11 的新特性"，文档中写的是"Python 3.11 引入了以下改进"，向量能匹配"Python"和"新特性"的语义，但"3.11"这个精确版本号可能匹配不准。
+
+混合检索（Hybrid Retrieval）将向量检索的语义能力和关键词检索的精确匹配能力结合，是生产 RAG 系统的标配。
+
+## 关键词检索：BM25
+
+BM25 是信息检索领域的经典算法，基于词频和逆文档频率（TF-IDF）的改进版本。
+
+### BM25 的核心思想
+
+```
+文档相关性 = 查询词在文档中的出现频率
+            × 查询词的稀有程度（在所有文档中越罕见越重要）
+            × 文档长度归一化（避免长文档占便宜）
+```
+
+### 简单实现
+
+```python
+from collections import Counter
+import math
+
+class SimpleBM25:
+    """简化版 BM25 实现，用于理解原理。"""
+
+    def __init__(self, documents: list[str], k1: float = 1.5, b: float = 0.75):
+        self.docs = documents
+        self.k1 = k1
+        self.b = b
+
+        # 构建词频统计
+        self.doc_freqs = []
+        self.doc_lengths = []
+        for doc in documents:
+            tokens = doc.lower().split()
+            self.doc_freqs.append(Counter(tokens))
+            self.doc_lengths.append(len(tokens))
+
+        self.avg_doc_len = sum(self.doc_lengths) / len(documents)
+
+        # 计算每个词出现在多少文档中
+        self.doc_count = len(documents)
+        self.idf = {}
+        all_terms = set()
+        for df in self.doc_freqs:
+            all_terms.update(df.keys())
+
+        for term in all_terms:
+            doc_freq = sum(1 for df in self.doc_freqs if term in df)
+            # IDF = log((N - n + 0.5) / (n + 0.5))
+            self.idf[term] = math.log(
+                (self.doc_count - doc_freq + 0.5) / (doc_freq + 0.5) + 1
+            )
+
+    def score(self, query: str, doc_idx: int) -> float:
+        """计算查询与指定文档的 BM25 分数。"""
+        query_terms = query.lower().split()
+        doc_freq = self.doc_freqs[doc_idx]
+        doc_len = self.doc_lengths[doc_idx]
+
+        score = 0.0
+        for term in query_terms:
+            if term not in self.idf:
+                continue
+
+            tf = doc_freq.get(term, 0)
+            idf = self.idf[term]
+
+            # BM25 核心公式
+            numerator = tf * (self.k1 + 1)
+            denominator = tf + self.k1 * (1 - self.b + self.b * doc_len / self.avg_doc_len)
+
+            score += idf * numerator / denominator
+
+        return score
+
+    def search(self, query: str, top_k: int = 5) -> list[tuple[int, float]]:
+        """返回 top-k 文档及其分数。"""
+        scores = [(i, self.score(query, i)) for i in range(self.doc_count)]
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:top_k]
+```
+
+### BM25 参数
+
+| 参数 | 作用 | 建议值 |
+|------|------|--------|
+| `k1` | 控制词频饱和度 | 1.2 - 2.0（默认 1.5） |
+| `b` | 控制文档长度归一化强度 | 0.0 - 1.0（默认 0.75） |
+
+- `k1` 越大，高频词的影响越大（越容易饱和）
+- `b` 越大，长文档的惩罚越重
+
+## 稀疏向量：将关键词检索向量化
+
+BM25 传统上不是向量运算。但近年出现了将稀疏检索向量化的方法，可以在向量数据库中统一存储：
+
+### SPLADE
+
+SPLADE 用神经网络将文本转为稀疏向量（大多数维度为0），每个非零维度对应一个"相关词"：
+
+```
+稠密向量（Embedding）：  [0.12, -0.34, 0.56, ..., 0.89]  ← 所有维度都有值
+稀疏向量（SPLADE）：    { 词ID_42: 2.3, 词ID_105: 1.8 }  ← 只有少数非零
+```
+
+稀疏向量的优势：
+- 可解释性强（非零维度对应具体词汇）
+- 存储高效（只存非零项）
+- 天然支持词汇精确匹配
+
+### 向量数据库中的稀疏向量支持
+
+```python
+# Milvus 支持稀疏向量（混合搜索）
+from pymilvus import MilvusClient
+
+client = MilvusClient("milvus_demo.db")
+
+# 创建同时支持稠密和稀疏向量的集合
+client.create_collection(
+    collection_name="hybrid_collection",
+    dimension=768,  # 稠密向量维度
+    # 同时配置稀疏向量字段...
+)
+```
+
+## 融合策略
+
+向量检索和关键词检索各返回一组结果，如何合并？
+
+### 1. 线性加权（Linear Combination）
+
+```python
+def linear_fusion(
+    vector_results: list[tuple[int, float]],
+    keyword_results: list[tuple[int, float]],
+    alpha: float = 0.5,  # 向量权重
+) -> list[tuple[int, float]]:
+    """加权融合两种检索结果。"""
+    # 归一化分数到 [0, 1]
+    def normalize(scores: list[float]) -> list[float]:
+        if len(scores) <= 1:
+            return scores
+        min_s, max_s = min(scores), max(scores)
+        return [(s - min_s) / (max_s - min_s) if max_s > min_s else 0
+                for s in scores]
+
+    # 构建分数字典
+    vec_scores = {doc_id: score for doc_id, score in vector_results}
+    key_scores = {doc_id: score for doc_id, score in keyword_results}
+
+    all_docs = set(vec_scores.keys()) | set(key_scores.keys())
+
+    # 融合
+    fused = []
+    for doc_id in all_docs:
+        v_score = vec_scores.get(doc_id, 0)
+        k_score = key_scores.get(doc_id, 0)
+        final_score = alpha * v_score + (1 - alpha) * k_score
+        fused.append((doc_id, final_score))
+
+    fused.sort(key=lambda x: x[1], reverse=True)
+    return fused
+```
+
+**问题**：需要归一化分数，而不同检索方法的分数分布差异很大，归一化可能不公平。
+
+### 2. Reciprocal Rank Fusion（RRF）
+
+推荐使用的融合方法，不需要分数归一化，只使用排名：
+
+```python
+def reciprocal_rank_fusion(
+    vector_results: list[tuple[int, float]],
+    keyword_results: list[tuple[int, float]],
+    k: float = 60,  # RRF 常数
+) -> list[tuple[int, float]]:
+    """
+    RRF 分数 = sum(1 / (k + rank))
+    k=60 是文献中验证较好的值
+    """
+    from collections import defaultdict
+
+    scores = defaultdict(float)
+
+    # 向量检索的排名贡献
+    for rank, (doc_id, _) in enumerate(vector_results, 1):
+        scores[doc_id] += 1 / (k + rank)
+
+    # 关键词检索的排名贡献
+    for rank, (doc_id, _) in enumerate(keyword_results, 1):
+        scores[doc_id] += 1 / (k + rank)
+
+    # 按融合分数排序
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+```
+
+**RRF 的优势**：
+- 不依赖分数的绝对值，只关心排名
+- 对两种检索方法的"尺度"差异不敏感
+- 简单、鲁棒、无超参（`k=60` 几乎通用）
+
+### 融合效果对比
+
+| 查询类型 | 向量检索 | 关键词检索 | 混合（RRF） |
+|----------|----------|------------|-------------|
+| "RAG 是什么" | 好 | 一般 | 好 |
+| "Python 3.11 match-case" | 一般 | 好 | 好 |
+| "公司最新产品功能" | 好 | 一般 | 好 |
+| "API v2.3 changelog" | 差 | 好 | 好 |
+
+## 生产实现
+
+LangChain 的 `EnsembleRetriever` 已经封装了 RRF：
+
+```python
+from langchain.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
+
+# 两种检索器
+bm25 = BM25Retriever.from_documents(all_splits)
+bm25.k = 5
+
+vector = vectorstore.as_retriever(search_kwargs={"k": 5})
+
+# 融合（自动使用 RRF）
+ensemble = EnsembleRetriever(
+    retrievers=[bm25, vector],
+    weights=[0.5, 0.5],
+)
+```
+
+或者手动实现更精细的控制：
+
+```python
+class HybridRetriever:
+    """自定义混合检索器，支持动态调整权重。"""
+
+    def __init__(self, vector_store, bm25_corpus, alpha: float = 0.5):
+        self.vector_retriever = vector_store.as_retriever(k=10)
+        self.bm25 = BM25Retriever.from_documents(bm25_corpus)
+        self.bm25.k = 10
+        self.alpha = alpha
+
+    def retrieve(self, query: str, final_k: int = 5) -> list[Document]:
+        # 两路检索
+        vec_results = self.vector_retriever.invoke(query)
+        bm25_results = self.bm25.invoke(query)
+
+        # RRF 融合
+        def doc_id(doc): return doc.metadata.get("source", "") + doc.page_content[:50]
+
+        scores = {}
+        for rank, doc in enumerate(vec_results, 1):
+            scores[doc_id(doc)] = scores.get(doc_id(doc), 0) + 1 / (60 + rank)
+            scores[doc_id(doc) + "_doc"] = doc
+
+        for rank, doc in enumerate(bm25_results, 1):
+            scores[doc_id(doc)] = scores.get(doc_id(doc), 0) + 1 / (60 + rank)
+            scores[doc_id(doc) + "_doc"] = doc
+
+        # 取 top-k
+        top_items = sorted(
+            [(k, v) for k, v in scores.items() if not k.endswith("_doc")],
+            key=lambda x: x[1],
+            reverse=True,
+        )[:final_k]
+
+        return [scores[k + "_doc"] for k, _ in top_items]
+```

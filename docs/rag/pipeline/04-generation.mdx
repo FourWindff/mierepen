@@ -1,0 +1,250 @@
+---
+title: "生成"
+sidebar_position: 4
+excerpt: "将检索到的上下文送入 LLM 生成回答：提示工程、上下文管理和答案质量控制。"
+---
+
+# 生成
+
+检索到相关文档后，最后一步是让 LLM 基于这些上下文生成回答。这一步的核心挑战是：**如何构造提示（Prompt），让模型既能充分利用检索到的信息，又不被无关内容干扰，同时保持回答的准确性和可读性。**
+
+## 基础 RAG 提示模板
+
+```python
+RAG_PROMPT = """基于以下检索到的参考资料，回答用户的问题。如果参考资料中没有相关信息，请明确说明"根据现有资料，我无法回答这个问题"。
+
+## 参考资料
+{context}
+
+## 用户问题
+{question}
+
+## 回答要求
+- 基于参考资料作答，不要编造不存在的信息
+- 如果多个资料有冲突，优先使用最新的资料
+- 回答要简洁明了，必要时可以分点说明
+
+## 回答
+"""
+
+def generate_answer(question: str, retrieved_chunks: list[RetrievalResult],
+                    llm_client) -> str:
+    # 将检索结果拼接成上下文
+    context_parts = []
+    for i, result in enumerate(retrieved_chunks, 1):
+        context_parts.append(
+            f"[{i}] 来源: {result.chunk.source}\n"
+            f"{result.chunk.content}\n"
+        )
+    context = "\n".join(context_parts)
+
+    prompt = RAG_PROMPT.format(context=context, question=question)
+    return llm_client.complete(prompt)
+```
+
+## 上下文窗口管理
+
+LLM 的上下文窗口有限，不能无限制地塞入检索结果。
+
+### 上下文截断策略
+
+```python
+def build_context(chunks: list[RetrievalResult],
+                  max_tokens: int = 4000,
+                  tokenizer) -> str:
+    """按相似度优先级填充上下文窗口。"""
+    context = []
+    current_tokens = 0
+
+    for result in chunks:
+        chunk_text = (
+            f"[来源: {result.chunk.source}]\n"
+            f"{result.chunk.content}\n\n"
+        )
+        chunk_tokens = len(tokenizer.encode(chunk_text))
+
+        if current_tokens + chunk_tokens > max_tokens:
+            break
+
+        context.append(chunk_text)
+        current_tokens += chunk_tokens
+
+    return "\n".join(context)
+```
+
+### 上下文压缩
+
+当检索结果很多时，可以在送入 LLM 前先压缩：
+
+```python
+def compress_context(chunks: list[RetrievalResult],
+                     llm_client,
+                     max_summary_length: int = 200) -> str:
+    """用 LLM 对每个 chunk 做摘要，保留核心信息。"""
+    summaries = []
+    for result in chunks:
+        prompt = f"""将以下文本压缩为 {max_summary_length} 字以内的摘要，保留关键事实：
+
+{result.chunk.content}
+
+摘要："""
+        summary = llm_client.complete(prompt)
+        summaries.append(
+            f"[{result.chunk.source}] {summary.strip()}"
+        )
+    return "\n".join(summaries)
+```
+
+## 提示工程技巧
+
+### 1. 添加系统提示约束行为
+
+```python
+SYSTEM_PROMPT = """你是一个知识问答助手。你的任务是基于提供的参考资料回答用户问题。
+
+重要约束：
+1. 你只能使用参考资料中的信息
+2. 不要添加参考资料中没有的内容
+3. 如果信息不足，回答"我无法从现有资料中找到答案"
+4. 回答应当准确、简洁、有条理
+5. 必要时可以引用参考资料的编号，如"根据资料[1]..."
+"""
+
+def generate_with_system(question: str, context: str, llm_client) -> str:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"参考资料:\n{context}\n\n问题: {question}"}
+    ]
+    return llm_client.chat(messages)
+```
+
+### 2. Few-shot 示例
+
+```python
+FEW_SHOT_PROMPT = """基于参考资料回答问题。示例：
+
+--- 示例 1 ---
+参考资料:
+[1] 2024年产品更新：新增PDF导出功能，支持批量处理。
+
+问题: 产品支持导出什么格式？
+回答: 根据资料[1]，产品支持PDF导出，且支持批量处理。
+
+--- 示例 2 ---
+参考资料:
+[1] 公司成立于2010年，总部在北京。
+
+问题: 公司CEO是谁？
+回答: 根据现有资料，我无法找到公司CEO的信息。
+
+--- 正式回答 ---
+参考资料:
+{context}
+
+问题: {question}
+回答："""
+```
+
+## 答案质量控制
+
+### 幻觉检测
+
+即使有了 RAG，模型仍可能"添油加醋"。可以用独立验证步骤：
+
+```python
+def verify_answer(question: str, answer: str, context: str,
+                  llm_client) -> dict:
+    """验证回答中的每个事实是否能在上下文中找到依据。"""
+    prompt = f"""验证以下回答中的每个事实陈述是否能在参考资料中找到依据。
+
+参考资料:
+{context}
+
+回答:
+{answer}
+
+请按以下格式输出（JSON）：
+{{
+  "facts": [
+    {"statement": "事实1", "supported": true, "source": "资料[1]"},
+    {"statement": "事实2", "supported": false, "reason": "资料中未提及"}
+  ],
+  "overall_verdict": "全部有依据 / 部分有依据 / 无依据"
+}}"""
+
+    response = llm_client.complete(prompt)
+    return json.loads(response)
+```
+
+### 置信度打分
+
+```python
+def answer_with_confidence(question: str, context: str,
+                           llm_client) -> tuple[str, float]:
+    """让模型同时输出回答和置信度。"""
+    prompt = f"""基于参考资料回答问题，并在最后输出置信度（0-1）。
+
+参考资料:
+{context}
+
+问题: {question}
+
+请严格按以下格式：
+回答: [你的回答]
+置信度: [0.0-1.0]
+"""
+    response = llm_client.complete(prompt)
+    # 解析回答和置信度...
+```
+
+## 流式输出
+
+```python
+async def stream_answer(question: str, context: str, llm_client):
+    """流式生成，提升用户体验。"""
+    prompt = RAG_PROMPT.format(context=context, question=question)
+
+    async for chunk in llm_client.complete_stream(prompt):
+        yield chunk.content
+
+# 前端使用：文字逐字出现，配合打字机效果
+```
+
+## 完整流程整合
+
+```python
+class RAGPipeline:
+    def __init__(self, retriever, llm_client, tokenizer):
+        self.retriever = retriever
+        self.llm = llm_client
+        self.tokenizer = tokenizer
+
+    def answer(self, question: str,
+               top_k: int = 5,
+               max_context_tokens: int = 4000) -> dict:
+        # 1. 检索
+        chunks = self.retriever.retrieve(question, top_k=top_k)
+
+        if not chunks:
+            return {
+                "answer": "抱歉，知识库中没有找到相关信息。",
+                "sources": [],
+                "confidence": 0.0
+            }
+
+        # 2. 构建上下文
+        context = build_context(chunks, max_context_tokens, self.tokenizer)
+
+        # 3. 生成
+        answer = generate_answer(question, chunks, self.llm)
+
+        # 4. 组装结果
+        return {
+            "answer": answer,
+            "sources": [
+                {"source": c.chunk.source, "score": c.score}
+                for c in chunks
+            ],
+            "context_used": len(chunks)
+        }
+```

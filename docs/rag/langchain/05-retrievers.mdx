@@ -1,0 +1,219 @@
+---
+title: "检索器"
+sidebar_position: 5
+excerpt: "超越基础向量检索：多查询检索、父文档检索、自查询检索等高级检索策略的 LangChain 实现。"
+---
+
+# 检索器
+
+基础向量检索往往不够。用户的问题表达多样，而文档的表达方式固定，两者之间存在"语义鸿沟"。LangChain 提供了多种高级检索策略来弥补这一差距。
+
+## 多查询检索（MultiQueryRetriever）
+
+用 LLM 为单个用户问题生成多个表达变体，分别检索后合并结果：
+
+```python
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain_openai import ChatOpenAI
+
+# 基础检索器
+base_retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
+# 包装为多查询检索器
+multi_query_retriever = MultiQueryRetriever.from_llm(
+    retriever=base_retriever,
+    llm=ChatOpenAI(temperature=0),
+)
+
+# 检索：内部会生成 3 个查询变体，合并结果
+results = multi_query_retriever.invoke("怎么退款？")
+print(f"原始查询: '怎么退款？'")
+print(f"返回结果数: {len(results)}")
+```
+
+内部生成的查询变体可能包括：
+- "怎么退款？"
+- "退货流程是什么？"
+- "如何申请退款？"
+- "退款政策和步骤"
+
+## 父文档检索器（ParentDocumentRetriever）
+
+解决"分块粒度 dilemma"：小块检索精度高但上下文少，大块上下文完整但检索精度低。
+
+**思路**：用小块做检索，但返回对应的大块（父文档）作为上下文。
+
+```python
+from langchain.retrievers import ParentDocumentRetriever
+from langchain.storage import InMemoryStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# 小块分割器（用于检索）
+child_splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=20)
+
+# 大块分割器（用于返回）
+parent_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+
+# 父文档存储
+store = InMemoryStore()
+
+retriever = ParentDocumentRetriever(
+    vectorstore=vectorstore,        # 存储小块的 embedding
+    docstore=store,                  # 存储父文档
+    child_splitter=child_splitter,
+    parent_splitter=parent_splitter,
+)
+
+# 添加文档（会自动分两层）
+retriever.add_documents(docs)
+
+# 检索：用小块的 embedding 匹配，返回父文档
+results = retriever.invoke("什么是 RAG?")
+for doc in results:
+    print(f"返回块大小: {len(doc.page_content)} 字符")
+```
+
+适用场景：法律文档、技术手册等需要完整上下文但检索需要精细粒度的场景。
+
+## 上下文压缩检索
+
+检索到的文档可能包含大量无关内容。用 LLM 压缩，只保留与查询相关的部分：
+
+```python
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMChainExtractor
+
+# 基础检索器
+base_retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+
+# 压缩器：用 LLM 提取与查询相关的片段
+compressor = LLMChainExtractor.from_llm(ChatOpenAI(temperature=0))
+
+compression_retriever = ContextualCompressionRetriever(
+    base_compressor=compressor,
+    base_retriever=base_retriever,
+)
+
+# 检索：先取5个文档，每个压缩为与查询相关的部分
+results = compression_retriever.invoke("RAG 的核心优势是什么？")
+for doc in results:
+    print(f"压缩后长度: {len(doc.page_content)}")
+    print(f"内容: {doc.page_content}\n")
+```
+
+## 自查询检索（SelfQueryRetriever）
+
+让 LLM 将自然语言查询解析为结构化过滤条件：
+
+```python
+from langchain.retrievers.self_query.base import SelfQueryRetriever
+from langchain.chains.query_constructor.base import AttributeInfo
+
+# 定义元数据字段
+metadata_field_info = [
+    AttributeInfo(
+        name="category",
+        description="文档类别，如 'product', 'legal', 'tutorial'",
+        type="string",
+    ),
+    AttributeInfo(
+        name="year",
+        description="文档发布的年份",
+        type="integer",
+    ),
+]
+
+document_content_description = "产品文档和技术教程"
+
+retriever = SelfQueryRetriever.from_llm(
+    llm=ChatOpenAI(temperature=0),
+    vectorstore=vectorstore,
+    document_contents=document_content_description,
+    metadata_field_info=metadata_field_info,
+    enable_limit=True,
+)
+
+# LLM 会自动解析 "2024年的产品文档" 为
+# 查询: "产品文档" + 过滤: year == 2024
+results = retriever.invoke("找一下2024年的产品文档")
+```
+
+## 集成检索器（EnsembleRetriever）
+
+结合多种检索方式，取并集后重排：
+
+```python
+from langchain.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
+
+# BM25 关键词检索（基于词频）
+bm25_retriever = BM25Retriever.from_documents(all_splits)
+bm25_retriever.k = 4
+
+# 向量检索
+vector_retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
+# 集成：各取 4 个，合并去重后取 top 4
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[bm25_retriever, vector_retriever],
+    weights=[0.5, 0.5],  # 两种检索方式的权重
+)
+
+results = ensemble_retriever.invoke("什么是 RAG?")
+```
+
+这是**混合检索**的 LangChain 实现，兼具语义理解和关键词匹配的互补优势。
+
+## 检索器选择决策树
+
+```
+问题类型单一、表达规范？
+├── 是 → 基础向量检索
+└── 否 → 用户表达多样？
+    ├── 是 → 多查询检索
+    └── 否 → 需要完整上下文？
+        ├── 是 → 父文档检索
+        └── 否 → 检索结果有噪声？
+            ├── 是 → 上下文压缩检索
+            └── 否 → 需要结构化过滤？
+                ├── 是 → 自查询检索
+                └── 否 → 混合检索 → 集成检索器
+```
+
+## 自定义检索器
+
+实现 `BaseRetriever` 接口即可创建自定义检索器：
+
+```python
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
+from typing import List
+
+class HybridRetriever(BaseRetriever):
+    """自定义混合检索器：先用向量检索，再用 BM25 补充。"""
+
+    vector_retriever: BaseRetriever
+    bm25_retriever: BaseRetriever
+    vector_weight: float = 0.7
+
+    def _get_relevant_documents(self, query: str) -> List[Document]:
+        # 两路检索
+        vector_results = self.vector_retriever.invoke(query)
+        bm25_results = self.bm25_retriever.invoke(query)
+
+        # 合并去重（简化实现）
+        seen = set()
+        merged = []
+        for doc in vector_results + bm25_results:
+            if doc.page_content not in seen:
+                merged.append(doc)
+                seen.add(doc.page_content)
+
+        return merged[:5]  # 返回 top 5
+
+# 使用
+hybrid = HybridRetriever(
+    vector_retriever=vectorstore.as_retriever(),
+    bm25_retriever=BM25Retriever.from_documents(all_splits),
+)
+```

@@ -1,0 +1,296 @@
+---
+title: "高级索引"
+sidebar_position: 4
+excerpt: "生产环境的索引优化：增量索引、多向量索引、分片策略，以及索引压缩技术。"
+---
+
+# 高级索引
+
+当向量库规模达到千万甚至亿级别时，索引的设计直接影响系统的可用性。本章介绍生产环境中常见的高级索引技术。
+
+## 增量索引
+
+生产环境的数据不是静态的。如何在不重建整个索引的情况下添加新数据？
+
+### HNSW 的增量特性
+
+```python
+import faiss
+
+# HNSW 天然支持增量添加
+d = 1536
+index = faiss.IndexHNSWFlat(d, 32)
+
+# 初始数据
+index.add(initial_vectors)
+
+# 后续增量添加
+index.add(new_vectors)  # 自动更新图结构
+
+# 保存
+faiss.write_index(index, "index.faiss")
+
+# 加载后继续添加
+index = faiss.read_index("index.faiss")
+index.add(more_vectors)
+```
+
+**注意**：HNSW 的增量添加是"在线"的，但图质量可能不如一次性批量建图。如果大量增量后性能下降，可以考虑周期性重建。
+
+### 增量更新的完整流程
+
+```python
+from dataclasses import dataclass
+import hashlib
+
+@dataclass
+class IncrementalVectorIndex:
+    """支持增量更新的向量索引。"""
+
+    index: faiss.Index
+    embedding_fn: callable
+    id_map: dict[int, str]  # faiss_id -> doc_id
+    content_hashes: set[str]  # 已索引内容的哈希
+
+    def add_documents(self, documents: list[Document]):
+        """添加新文档，自动去重。"""
+        new_docs = []
+        new_embeddings = []
+
+        for doc in documents:
+            content_hash = hashlib.md5(
+                doc.page_content.encode()
+            ).hexdigest()
+
+            if content_hash not in self.content_hashes:
+                new_docs.append(doc)
+                new_embeddings.append(
+                    self.embedding_fn(doc.page_content)
+                )
+                self.content_hashes.add(content_hash)
+
+        if new_embeddings:
+            embeddings_array = np.array(new_embeddings).astype('float32')
+            start_id = self.index.ntotal
+            self.index.add(embeddings_array)
+
+            for i, doc in enumerate(new_docs):
+                self.id_map[start_id + i] = doc.metadata.get("id", str(start_id + i))
+
+            print(f"新增索引: {len(new_docs)} 个文档")
+
+    def delete_documents(self, doc_ids: list[str]):
+        """
+        标记删除（软删除）。
+        FAISS 不支持真正的删除，用标记位处理。
+        """
+        # 生产环境通常用 IDMap + 维护删除列表
+        # 或使用支持删除的向量数据库（Milvus、Pinecone）
+        pass
+```
+
+## 多向量索引
+
+一个文档可能有多种"视角"的表示：
+
+```python
+class MultiVectorIndex:
+    """
+    多向量索引：每个文档用多个向量表示。
+
+    场景：
+    - 一个产品文档：标题向量 + 正文向量 + 摘要向量
+    - 一个问答对：问题向量 + 答案向量
+    """
+
+    def __init__(self, dimensions: list[int]):
+        """
+        dimensions: 每种表示的维度列表
+        """
+        self.indexes = [
+            faiss.IndexHNSWFlat(d, 32) for d in dimensions
+        ]
+        self.documents = []
+
+    def add(self, doc: Document, embeddings: dict[str, np.ndarray]):
+        """
+        embeddings: {"title": vec1, "content": vec2, "summary": vec3}
+        """
+        doc_idx = len(self.documents)
+        self.documents.append(doc)
+
+        for i, (field, vec) in enumerate(embeddings.items()):
+            # 每个字段一个独立的索引
+            self.indexes[i].add(vec.reshape(1, -1).astype('float32'))
+
+    def search(self, query_vec: np.ndarray,
+               field_weights: dict[str, float],
+               top_k: int = 5) -> list[Document]:
+        """
+        按字段权重加权搜索。
+        field_weights: {"title": 2.0, "content": 1.0}
+        """
+        scores = {}
+
+        for field, weight in field_weights.items():
+            idx = list(embeddings.keys()).index(field)
+            D, I = self.indexes[idx].search(
+                query_vec.reshape(1, -1), top_k * 2
+            )
+            for dist, doc_idx in zip(D[0], I[0]):
+                scores[doc_idx] = scores.get(doc_idx, 0) + weight * dist
+
+        # 按加权分数排序
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        return [self.documents[i] for i, _ in ranked[:top_k]]
+```
+
+## 索引分片
+
+单机的内存和计算能力有限。当数据量超过单机承载时，需要分片（Sharding）：
+
+```python
+class ShardedIndex:
+    """分片索引：将数据分散到多个子索引。"""
+
+    def __init__(self, num_shards: int, dimension: int):
+        self.num_shards = num_shards
+        self.shards = [
+            faiss.IndexHNSWFlat(dimension, 32)
+            for _ in range(num_shards)
+        ]
+        self.shard_doc_maps = [{} for _ in range(num_shards)]
+
+    def _get_shard(self, doc_id: str) -> int:
+        """根据 doc_id 的哈希决定分配到哪个分片。"""
+        return hash(doc_id) % self.num_shards
+
+    def add(self, doc_id: str, vector: np.ndarray):
+        shard_id = self._get_shard(doc_id)
+        local_id = self.shards[shard_id].ntotal
+        self.shards[shard_id].add(vector.reshape(1, -1))
+        self.shard_doc_maps[shard_id][local_id] = doc_id
+
+    def search(self, query: np.ndarray, k: int = 5) -> list[tuple[str, float]]:
+        """在所有分片上搜索，合并结果。"""
+        all_results = []
+
+        for shard_id, shard in enumerate(self.shards):
+            D, I = shard.search(query.reshape(1, -1), k)
+            for dist, local_id in zip(D[0], I[0]):
+                doc_id = self.shard_doc_maps[shard_id].get(local_id)
+                if doc_id:
+                    all_results.append((doc_id, float(dist)))
+
+        # 全局 Top-K
+        all_results.sort(key=lambda x: x[1], reverse=True)
+        return all_results[:k]
+```
+
+## 索引压缩
+
+向量索引的存储是 RAG 系统的主要成本之一。
+
+### 乘积量化（PQ）
+
+```python
+import faiss
+
+d = 1536
+# PQ 将每个向量压缩为更短的编码
+# 16 = 每个子向量用 8 位编码，共 16 字节（vs 原始 1536*4=6144 字节）
+# 压缩比 ~384x
+
+index = faiss.IndexPQ(d, 16, 8)  # (维度, 子空间数, 每子空间比特数)
+index.train(training_vectors)     # 需要训练
+index.add(vectors)
+
+print(f"原始大小: {vectors.nbytes / 1024 / 1024:.1f} MB")
+print(f"压缩后大小: {index.sa_encode(vectors).nbytes / 1024 / 1024:.1f} MB")
+```
+
+### IVF + PQ 组合
+
+```python
+# IVF 减少搜索范围 + PQ 压缩向量
+nlist = 100  # 聚类中心数
+quantizer = faiss.IndexFlatIP(d)
+index = faiss.IndexIVFPQ(quantizer, d, nlist, 16, 8)
+
+index.train(training_vectors)
+index.add(vectors)
+
+# 搜索（nprobe 控制搜索的聚类数）
+index.nprobe = 10  # 搜索 10 个最近的聚类
+D, I = index.search(queries, k=10)
+```
+
+**压缩效果**：
+
+| 索引类型 | 存储/向量 | 相对召回率 | 搜索速度 |
+|----------|-----------|------------|----------|
+| Flat (原始) | 6 KB | 100% | 1x |
+| HNSW | 6 KB | 99% | 100x |
+| IVF_PQ | ~16 B | 90-95% | 500x |
+| Scalar Quantizer | 768 B | 98% | 50x |
+
+### 量化策略选择
+
+```
+数据量    精度要求    推荐方案
+─────────────────────────────────
+< 1M      最高       HNSW Flat
+1M-10M    高         HNSW Flat / HNSW + SQ
+10M-100M  中高       HNSW + PQ 或 IVF + PQ
+> 100M    中         IVF + PQ (大 nlist)
+```
+
+## 索引监控
+
+```python
+class IndexMonitor:
+    """索引性能监控。"""
+
+    def __init__(self, index):
+        self.index = index
+        self.query_times = []
+        self.recalls = []
+
+    def benchmark(self, queries: np.ndarray, ground_truth: np.ndarray,
+                  k: int = 10) -> dict:
+        """运行基准测试。"""
+        import time
+
+        start = time.time()
+        D, I = self.index.search(queries, k)
+        elapsed = time.time() - start
+
+        # 计算召回率
+        recalls = []
+        for pred, gt in zip(I, ground_truth):
+            hits = len(set(pred) & set(gt[:k]))
+            recalls.append(hits / k)
+
+        return {
+            "total_time": elapsed,
+            "queries_per_sec": len(queries) / elapsed,
+            "avg_recall": sum(recalls) / len(recalls),
+            "index_size_mb": self.index.sa_encode(
+                np.zeros((1, self.index.d))
+            ).nbytes / 1024 / 1024 * self.index.ntotal,
+        }
+```
+
+## 索引生命周期管理
+
+```
+Day 0:    初始建图（HNSW Flat）
+          ↓
+Daily:    增量添加新数据
+          ↓
+Weekly:   性能检查（召回率、延迟）
+          ↓
+Monthly:  如果性能下降，触发重建
+          ↓
+Quarterly: 评估是否需要升级索引结构
+```

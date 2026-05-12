@@ -1,0 +1,236 @@
+---
+title: "文本分割器"
+sidebar_position: 3
+excerpt: "LangChain 内置的文本分块策略：递归字符分割、语义分割、代码分割等，以及如何选择合适的分块参数。"
+---
+
+# 文本分割器
+
+加载文档后，下一步是将长文档切分为适合检索的小块。LangChain 提供了一系列开箱即用的文本分割器，覆盖从简单到复杂的各种场景。
+
+## 递归字符文本分割器
+
+这是 LangChain 的**默认推荐**，按优先级递归尝试多种分隔符：
+
+```python
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,        # 每个块的目标大小（字符数）
+    chunk_overlap=200,      # 相邻块之间的重叠字符数
+    length_function=len,    # 计算长度的函数
+    is_separator_regex=False,
+)
+
+# 分割文档
+docs = loader.load()  # 上一章的加载结果
+splits = text_splitter.split_documents(docs)
+
+print(f"原始文档: {len(docs)} 个")
+print(f"分割后: {len(splits)} 个块")
+print(f"平均块大小: {sum(len(s.page_content) for s in splits) / len(splits):.0f} 字符")
+```
+
+**默认分隔符优先级**（从高到低）：
+1. `\n\n` — 段落分隔
+2. `\n` — 行分隔
+3. `" "` — 空格
+4. `""` — 字符（最后手段）
+
+分割器会优先在较大的自然边界处切分，如果结果仍大于 `chunk_size`，则尝试更小的分隔符。
+
+### 为什么需要重叠
+
+```
+┌────────────────────────────────────┐
+│  Chunk 1: "...这是第一段内容。这    │
+│  是第二段..."                       │
+└────────────────────────────────────┘
+              ↕ overlap=200
+┌────────────────────────────────────┐
+│  Chunk 2: "...是第二段内容。这是    │
+│  第三段..."                         │
+└────────────────────────────────────┘
+```
+
+重叠确保跨边界的信息（如"第二段"）在两个块中都出现，避免关键上下文被切断。
+
+## Token 级别的分割
+
+如果用字符数不准确（不同语言字符宽度不同），可以用 tokenizer 来计算实际 token 数：
+
+```python
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from transformers import GPT2TokenizerFast
+
+# 使用 GPT-2 的 tokenizer（近似 OpenAI 模型的 token 计算）
+tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+
+text_splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+    tokenizer,
+    chunk_size=512,     # token 数
+    chunk_overlap=50,
+)
+
+# 或使用 tiktoken（OpenAI 官方 tokenizer）
+text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+    model_name="gpt-4",
+    chunk_size=512,
+    chunk_overlap=50,
+)
+```
+
+## 代码专用分割器
+
+代码与普通文本不同：需要保持函数、类、方法的完整性。
+
+```python
+from langchain_text_splitters import (
+    RecursiveCharacterTextSplitter,
+    Language,
+)
+
+# Python 代码分割
+python_splitter = RecursiveCharacterTextSplitter.from_language(
+    language=Language.PYTHON,
+    chunk_size=1000,
+    chunk_overlap=200,
+)
+
+code = '''
+def hello():
+    print("Hello")
+
+class Calculator:
+    def add(self, a, b):
+        return a + b
+
+    def subtract(self, a, b):
+        return a - b
+'''
+
+python_docs = python_splitter.create_documents([code])
+for doc in python_docs:
+    print(f"--- 块 ---\n{doc.page_content}\n")
+```
+
+支持的语言：`PYTHON`, `JS`, `TS`, `JAVA`, `CPP`, `GO`, `RUST`, `MARKDOWN`, `JSON`, `HTML`, `SQL` 等。
+
+## Markdown 专用分割器
+
+保留标题层级结构，按标题切分：
+
+```python
+from langchain_text_splitters import MarkdownHeaderTextSplitter
+
+markdown_document = """
+# 第一章
+
+## 1.1 简介
+
+这是简介内容...
+
+## 1.2 背景
+
+背景信息...
+
+# 第二章
+
+## 2.1 方法
+
+方法描述...
+"""
+
+headers_to_split_on = [
+    ("#", "Header 1"),
+    ("##", "Header 2"),
+    ("###", "Header 3"),
+]
+
+markdown_splitter = MarkdownHeaderTextSplitter(
+    headers_to_split_on=headers_to_split_on
+)
+md_header_splits = markdown_splitter.split_text(markdown_document)
+
+for doc in md_header_splits:
+    print(f"标题: {doc.metadata}")
+    print(f"内容: {doc.page_content[:100]}...\n")
+```
+
+输出中每个块的 metadata 会包含所属标题信息，检索时可以用于上下文增强。
+
+## 语义分割
+
+前面的方法都基于字符/ token 数量。语义分割基于内容意义来切分：
+
+```python
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_openai.embeddings import OpenAIEmbeddings
+
+# 基于 embedding 相似度的语义分割
+text_splitter = SemanticChunker(
+    OpenAIEmbeddings(),
+    breakpoint_threshold_type="percentile",  # 或 "standard_deviation"
+    breakpoint_threshold_amount=95,          # 百分位数阈值
+)
+
+docs = text_splitter.create_documents([long_text])
+```
+
+原理：逐句计算 embedding，当相邻句子相似度突然下降（低于阈值）时，说明语义发生了转折，在此处切分。
+
+**优点**：切分边界自然，语义连贯性好。
+**缺点**：需要调用 embedding API，成本高、速度慢。
+
+## 分块参数选择指南
+
+| 场景 | chunk_size | chunk_overlap | 分割器 |
+|------|-----------|---------------|--------|
+| 通用文档 | 1000 | 200 | RecursiveCharacter |
+| 问答系统 | 400-500 | 50-100 | RecursiveCharacter |
+| 代码库 | 1000-1500 | 200 | Language-specific |
+| 长文档摘要 | 2000 | 200 | RecursiveCharacter |
+| 精确语义检索 | 200-300 | 20-50 | SemanticChunker |
+
+### 评估分块质量
+
+```python
+def evaluate_chunks(chunks: list[Document]) -> dict:
+    """评估分块质量指标。"""
+    sizes = [len(c.page_content) for c in chunks]
+
+    return {
+        "count": len(chunks),
+        "avg_size": sum(sizes) / len(sizes),
+        "min_size": min(sizes),
+        "max_size": max(sizes),
+        # 理想情况下所有块大小接近 chunk_size
+        # 过小的块（如 < 50）可能是噪声
+        "tiny_chunks": sum(1 for s in sizes if s < 50),
+    }
+```
+
+## 完整流程示例
+
+```python
+from langchain_community.document_loaders import DirectoryLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# 1. 加载
+loader = DirectoryLoader("docs/", glob="**/*.md")
+docs = loader.load()
+
+# 2. 分割
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,
+)
+all_splits = text_splitter.split_documents(docs)
+
+# 3. 查看统计
+print(f"文档数: {len(docs)}")
+print(f"分块数: {len(all_splits)}")
+print(f"\n第一个块:")
+print(f"内容: {all_splits[0].page_content[:200]}...")
+print(f"元数据: {all_splits[0].metadata}")
+```

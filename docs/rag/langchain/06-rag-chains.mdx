@@ -1,0 +1,300 @@
+---
+title: "RAG 链"
+sidebar_position: 6
+excerpt: "将所有组件组装成完整的 RAG 流程：从 LCEL 管道构建到对话式 RAG 和 Agentic RAG 的进阶实现。"
+---
+
+# RAG 链
+
+有了文档加载、分割、向量存储和检索器，最后一章将它们组装成完整的 RAG 系统。LangChain 的 LCEL 让这一步异常优雅。
+
+## 基础 RAG 链
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import StrOutputParser
+from operator import itemgetter
+
+# 1. 提示模板
+template = """你是专业的技术问答助手。基于以下检索到的参考资料回答问题。
+如果资料中没有相关信息，请明确说明"根据现有资料无法回答"。
+
+参考资料：
+{context}
+
+问题：{question}
+
+请用中文回答，保持简洁准确："""
+
+prompt = ChatPromptTemplate.from_template(template)
+
+# 2. 模型和解析器
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+parser = StrOutputParser()
+
+# 3. 检索器
+retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
+# 4. 组装 RAG 链
+rag_chain = (
+    {
+        "context": itemgetter("question") | retriever | format_docs,
+        "question": itemgetter("question"),
+    }
+    | prompt
+    | model
+    | parser
+)
+
+# 辅助函数：将检索到的 Document 列表格式化为字符串
+def format_docs(docs: list[Document]) -> str:
+    return "\n\n".join(
+        f"[来源: {d.metadata.get('source', 'unknown')}]\n{d.page_content}"
+        for d in docs
+    )
+
+# 运行
+result = rag_chain.invoke({"question": "什么是 RAG?"})
+print(result)
+```
+
+## 带溯源的 RAG 链
+
+让回答附带来源信息，增强可信度：
+
+```python
+from langchain_core.runnables import RunnablePassthrough
+
+# 修改 format_docs 保留引用标记
+def format_docs_with_sources(docs: list[Document]) -> str:
+    return "\n\n".join(
+        f"[{i+1}] {d.page_content}"
+        for i, d in enumerate(docs)
+    )
+
+# 链中同时返回来源
+rag_chain_with_sources = (
+    {
+        "context": itemgetter("question") | retriever | format_docs_with_sources,
+        "question": itemgetter("question"),
+        "docs": itemgetter("question") | retriever,  # 保留原始 docs
+    }
+    | prompt
+    | model
+    | parser
+)
+
+# 或者更清晰的结构：用 LCEL 的 RunnableParallel
+from langchain_core.runnables import RunnableParallel
+
+rag_chain = (
+    RunnableParallel({
+        "context": itemgetter("question") | retriever | format_docs_with_sources,
+        "question": RunnablePassthrough(),
+    })
+    | prompt
+    | model
+    | parser
+)
+```
+
+## 流式输出
+
+```python
+# 只需将 .invoke 换成 .stream
+for chunk in rag_chain.stream({"question": "什么是 RAG?"}):
+    print(chunk, end="", flush=True)
+
+# 异步流式
+async for chunk in rag_chain.astream({"question": "什么是 RAG?"}):
+    print(chunk, end="", flush=True)
+```
+
+前端配合打字机效果，用户体验大幅提升。
+
+## 对话式 RAG（Conversational RAG）
+
+基础 RAG 没有记忆，每次问答独立。对话式 RAG 保留历史上下文：
+
+```python
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.prompts import MessagesPlaceholder
+
+# 修改提示模板，加入历史消息
+history_prompt = ChatPromptTemplate.from_messages([
+    ("system", "你是技术问答助手。基于参考资料回答问题。"),
+    MessagesPlaceholder(variable_name="history"),  # 历史消息占位
+    ("human", "参考资料：\n{context}\n\n问题：{question}"),
+])
+
+# 维护对话历史
+history = []
+
+def conversational_rag(question: str) -> str:
+    # 检索
+    docs = retriever.invoke(question)
+    context = format_docs(docs)
+
+    # 构建消息
+    result = history_prompt | model | parser
+    answer = result.invoke({
+        "history": history,
+        "context": context,
+        "question": question,
+    })
+
+    # 更新历史
+    history.extend([
+        HumanMessage(content=question),
+        AIMessage(content=answer),
+    ])
+
+    return answer
+```
+
+### 用 RunnableWithMessageHistory 简化
+
+```python
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
+
+# 消息历史存储（生产环境用 Redis/DB）
+store = {}
+
+def get_session_history(session_id: str):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+# 包装为带历史的链
+conversational_rag_chain = RunnableWithMessageHistory(
+    rag_chain,
+    get_session_history,
+    input_messages_key="question",
+    history_messages_key="history",
+)
+
+# 每次调用带上 session_id
+result = conversational_rag_chain.invoke(
+    {"question": "什么是 RAG?"},
+    config={"configurable": {"session_id": "user_123"}},
+)
+```
+
+## Agentic RAG
+
+当用户问题不确定是否需要检索、或需要多步检索时，让 LLM 自己决定：
+
+```python
+from langchain.tools.retriever import create_retriever_tool
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+
+# 将检索器包装为工具
+retriever_tool = create_retriever_tool(
+    retriever,
+    name="knowledge_base_search",
+    description="搜索知识库中的技术文档。当用户询问产品功能、技术概念或操作步骤时使用。",
+)
+
+tools = [retriever_tool]
+
+# Agent 提示
+agent_prompt = ChatPromptTemplate.from_messages([
+    ("system", "你是一个有帮助的助手。你可以使用工具来搜索知识库。"),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("human", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
+
+# 创建 Agent
+agent = create_tool_calling_agent(model, tools, agent_prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# 运行：Agent 会自己决定要不要检索
+result = agent_executor.invoke({
+    "input": "什么是 RAG?",
+    "chat_history": [],
+})
+print(result["output"])
+```
+
+Agent 的优势：
+- 对闲聊问题直接回答，不浪费检索调用
+- 对复杂问题可以**多步检索**
+- 可以结合计算器、搜索等其他工具
+
+## 完整生产级 RAG 系统
+
+```python
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableParallel
+from operator import itemgetter
+
+class ProductionRAG:
+    def __init__(self, docs_path: str):
+        # 1. 加载
+        from langchain_community.document_loaders import DirectoryLoader
+        loader = DirectoryLoader(docs_path, glob="**/*.md")
+        docs = loader.load()
+
+        # 2. 分割
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000, chunk_overlap=200
+        )
+        splits = splitter.split_documents(docs)
+
+        # 3. 向量存储
+        self.vectorstore = Chroma.from_documents(
+            splits, OpenAIEmbeddings()
+        )
+
+        # 4. 检索器（MMR + 多查询）
+        from langchain.retrievers.multi_query import MultiQueryRetriever
+        base_retriever = self.vectorstore.as_retriever(
+            search_type="mmr",
+            search_kwargs={"k": 4, "fetch_k": 20},
+        )
+        self.retriever = MultiQueryRetriever.from_llm(
+            retriever=base_retriever,
+            llm=ChatOpenAI(temperature=0),
+        )
+
+        # 5. 链
+        self.chain = self._build_chain()
+
+    def _build_chain(self):
+        prompt = ChatPromptTemplate.from_template("""
+基于以下参考资料回答问题。如果无法回答，请说明。
+
+{context}
+
+问题：{question}
+""")
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+        def format_docs(docs):
+            return "\n\n".join(d.page_content for d in docs)
+
+        return (
+            RunnableParallel({
+                "context": itemgetter("question") | self.retriever | format_docs,
+                "question": itemgetter("question"),
+            })
+            | prompt
+            | model
+            | StrOutputParser()
+        )
+
+    def ask(self, question: str) -> str:
+        return self.chain.invoke({"question": question})
+
+# 使用
+rag = ProductionRAG("docs/")
+answer = rag.ask("什么是 RAG?")
+print(answer)
+```

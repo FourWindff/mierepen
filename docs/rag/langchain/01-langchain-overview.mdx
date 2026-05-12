@@ -1,0 +1,180 @@
+---
+title: "LangChain 概述"
+sidebar_position: 1
+excerpt: "理解 LangChain 的核心概念：组件、链、LCEL 表达式语言，以及它们如何协作构建 RAG 系统。"
+---
+
+# LangChain 概述
+
+LangChain 不是一个大而全的框架，而是一套**组件 + 组合机制**的设计哲学。理解这一点，你就能灵活地用它搭建任意复杂的 LLM 应用。
+
+## 核心概念
+
+### 1. 组件（Components）
+
+LangChain 中的每个功能都是一个独立的、可替换的组件：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    RAG 组件栈                            │
+├─────────────┬─────────────┬─────────────┬───────────────┤
+│  文档加载器  │  文本分割器  │   Embedding │   向量存储     │
+│  Document   │  Text       │   Model     │   Vector      │
+│  Loaders    │  Splitters  │             │   Stores      │
+├─────────────┴─────────────┴─────────────┴───────────────┤
+│                    检索器 (Retrievers)                    │
+├─────────────────────────────────────────────────────────┤
+│                  语言模型 (Chat Models)                   │
+├─────────────────────────────────────────────────────────┤
+│                  输出解析器 (Output Parsers)              │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 2. 链（Chains）
+
+链是将多个组件按顺序连接起来的执行流程。LangChain 的**LCEL（LangChain Expression Language）**用管道符 `|` 来组合：
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+# 一个最简单的链：提示模板 → LLM
+prompt = ChatPromptTemplate.from_template("讲一个关于{topic}的笑话")
+model = ChatOpenAI(model="gpt-4o-mini")
+
+chain = prompt | model
+
+# 运行
+result = chain.invoke({"topic": "程序员"})
+print(result.content)
+```
+
+输出：
+```
+为什么程序员总是分不清圣诞节和万圣节？
+
+因为 Oct 31 == Dec 25。
+```
+
+### 3. Runnable 接口
+
+所有组件都实现了统一的 `Runnable` 接口：
+
+| 方法 | 用途 | 示例 |
+|------|------|------|
+| `.invoke(input)` | 同步单条执行 | `chain.invoke({"q": "..."})` |
+| `.batch(inputs)` | 同步批量执行 | `chain.batch([{"q": "a"}, {"q": "b"}])` |
+| `.stream(input)` | 流式输出 | `for chunk in chain.stream({"q": "..."})` |
+| `.ainvoke(input)` | 异步执行 | `await chain.ainvoke({"q": "..."})` |
+
+## LCEL 管道详解
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import StrOutputParser
+
+# 更复杂的链：模板 → 模型 → 解析器
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "你是一个{role}。"),
+    ("human", "{question}"),
+])
+model = ChatOpenAI(model="gpt-4o-mini")
+parser = StrOutputParser()  # 将 AIMessage 转为字符串
+
+chain = prompt | model | parser
+
+# invoke 时的输入会流入链的第一个组件
+result = chain.invoke({
+    "role": "Python 专家",
+    "question": "解释一下装饰器"
+})
+# result 已经是字符串，不需要 .content
+```
+
+**数据流**：
+```
+{"role": "...", "question": "..."}
+    │
+    ▼
+prompt ──▶ [SystemMessage("你是一个..."), HumanMessage("解释一下...")]
+    │
+    ▼
+model  ──▶ AIMessage("装饰器是...")
+    │
+    ▼
+parser ──▶ "装饰器是 Python 中一种..."
+```
+
+## RAG 在 LangChain 中的表达
+
+RAG 的核心流程在 LCEL 中可以非常直观地表达：
+
+```python
+from operator import itemgetter
+from langchain_core.prompts import ChatPromptTemplate
+
+# RAG 提示模板
+template = """基于以下上下文回答问题：
+
+上下文：
+{context}
+
+问题：{question}
+"""
+prompt = ChatPromptTemplate.from_template(template)
+
+# 假设 retriever 和 model 已定义
+# 组合成 RAG 链
+rag_chain = (
+    {
+        "context": itemgetter("question") | retriever,
+        "question": itemgetter("question"),
+    }
+    | prompt
+    | model
+    | parser
+)
+```
+
+这段代码的精髓在于：
+- `itemgetter("question")` 从输入中提取问题
+- 问题同时流向两个分支：一个去 `retriever` 检索上下文，一个保留作为 `question`
+- 两个分支的结果合并成 `{"context": "...", "question": "..."}` 传给 prompt
+- 后续就是常规的 prompt → model → parser
+
+## 配置管理
+
+```python
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+# 环境变量方式（推荐）
+# export OPENAI_API_KEY=sk-...
+
+# 或代码中显式传入
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.0,      # 确定性输出
+    api_key="sk-...",
+)
+
+embeddings = OpenAIEmbeddings(
+    model="text-embedding-3-small"
+)
+```
+
+## 追踪与调试
+
+LangChain 集成了 LangSmith 用于追踪每条链的执行过程：
+
+```python
+import os
+
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_API_KEY"] = "ls-..."
+os.environ["LANGCHAIN_PROJECT"] = "rag-tutorial"
+
+# 此后所有链的调用都会被记录到 LangSmith 面板
+result = rag_chain.invoke({"question": "什么是 RAG?"})
+# 去 LangSmith 可以看到完整的中间步骤
+```

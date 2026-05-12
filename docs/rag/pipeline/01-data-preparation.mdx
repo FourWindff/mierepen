@@ -1,0 +1,175 @@
+---
+title: "数据准备"
+sidebar_position: 1
+excerpt: "RAG 的第一步：如何清洗、转换和切分原始数据，确保高质量的检索素材。"
+---
+
+# 数据准备
+
+数据准备是 RAG 流程中最容易被忽视但影响最大的环节。再强大的模型和检索算法，也救不了低质量的原始数据。本章覆盖从原始文档到可检索片段的完整处理链路。
+
+## 为什么数据准备如此重要
+
+RAG 的检索质量直接取决于索引内容的质量：
+
+- **分块过大** → 检索到的片段包含大量无关信息，稀释信号
+- **分块过小** → 丢失上下文，单个片段语义不完整
+- **格式混乱** → 表格、代码块等结构信息丢失
+- **重复/噪声** → 向量空间被污染，相似度计算失真
+
+## 数据清洗
+
+### 常见清洗操作
+
+```python
+import re
+
+def clean_text(text: str) -> str:
+    # 去除多余空白
+    text = re.sub(r'\s+', ' ', text)
+    # 去除页眉页脚标记（如 "Page 12 of 45"）
+    text = re.sub(r'Page \d+ of \d+', '', text)
+    # 去除版权声明重复
+    text = re.sub(r'©\s*\d{4}.*?All rights reserved\.?', '', text)
+    # 去除 URL（视场景决定）
+    # text = re.sub(r'https?://\S+', '[URL]', text)
+    return text.strip()
+```
+
+### 结构化数据特殊处理
+
+| 数据类型 | 处理要点 | 示例 |
+|----------|----------|------|
+| **表格** | 保留行列关系，考虑转文本 | `\| 列A \| 列B \|` |
+| **代码块** | 保留缩进和语法，去除行号 | 原样保留 |
+| **列表** | 保留层级结构 | 缩进表示嵌套 |
+| **标题** | 保留层级信息 | 可在分块时作为上下文 |
+
+## 文档分块（Chunking）
+
+分块是将长文档切分为适合检索的小片段的过程。这是 RAG 中最关键的工程决策之一。
+
+### 分块策略对比
+
+#### 1. 固定长度分块
+
+```python
+def fixed_chunk(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
+    """按固定字符数分块，保留重叠避免上下文断裂。"""
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        # 尽量在句子边界切分
+        if end < len(text):
+            while end > start and text[end] not in '.!?。！？\n':
+                end -= 1
+            if end == start:
+                end = start + chunk_size
+        chunks.append(text[start:end].strip())
+        start = end - overlap  # 重叠窗口
+    return chunks
+```
+
+**特点**：简单直接，但不理解语义边界。适合对速度要求高的场景。
+
+#### 2. 语义分块
+
+```python
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+def semantic_chunk(text: str, threshold: float = 0.7) -> list[str]:
+    """按语义相似度分块：当相邻句子相似度低于阈值时切分。"""
+    sentences = text.split('. ')
+    if len(sentences) < 2:
+        return [text]
+
+    embeddings = model.encode(sentences)
+    chunks = []
+    current_chunk = [sentences[0]]
+
+    for i in range(1, len(sentences)):
+        sim = np.dot(embeddings[i-1], embeddings[i])
+        if sim < threshold:
+            chunks.append('. '.join(current_chunk) + '.')
+            current_chunk = []
+        current_chunk.append(sentences[i])
+
+    if current_chunk:
+        chunks.append('. '.join(current_chunk) + '.')
+
+    return chunks
+```
+
+**特点**：保留语义连贯性，切分更自然。计算开销较大。
+
+#### 3. 递归字符分块
+
+```python
+def recursive_chunk(text: str, separators: list[str] = None,
+                     chunk_size: int = 500, overlap: int = 50) -> list[str]:
+    """
+    递归地尝试多种分隔符：
+    先按大段落切 → 太大则按小段落 → 仍太大则按句子 → 最后按字符
+    """
+    if separators is None:
+        separators = ['\n\n', '\n', '. ', '? ', '! ', ' ']
+
+    chunks = []
+    if len(text) <= chunk_size:
+        return [text]
+
+    separator = separators[0]
+    parts = text.split(separator)
+
+    for part in parts:
+        if len(part) <= chunk_size:
+            chunks.append(part)
+        else:
+            # 递归使用下一个分隔符
+            chunks.extend(recursive_chunk(
+                part, separators[1:], chunk_size, overlap
+            ))
+
+    return chunks
+```
+
+**特点**：优先保持自然边界， fallback 到更小粒度。LangChain 的默认策略。
+
+### 分块大小选择
+
+| 场景 | 推荐大小 | 原因 |
+|------|----------|------|
+| 问答系统 | 200-400 tokens | 精确匹配小范围内容 |
+| 长文档摘要 | 1000-2000 tokens | 保留足够上下文 |
+| 代码检索 | 函数/类级别 | 保持逻辑完整性 |
+| 表格数据 | 整表或整行 | 避免拆分行列关系 |
+
+## 元数据标注
+
+在分块时附加元数据，检索后可用于过滤和排序：
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class DocumentChunk:
+    content: str
+    source: str          # 原始文档路径/URL
+    page_number: int     # 页码
+    section_title: str   # 所属章节
+    created_at: datetime # 创建时间
+    doc_type: str        # 文档类型：pdf, html, markdown...
+    chunk_index: int     # 在原文中的顺序
+```
+
+## 实践建议
+
+1. **从简单开始**：先用固定长度分块验证整个流程，再逐步优化
+2. **可视化检查**：随机抽查分块结果，看是否保留了语义完整性
+3. **保留重叠**：设置 10%-20% 的重叠窗口，避免信息跨块断裂
+4. **混合策略**：不同类型内容使用不同分块策略（如代码保持函数级、正文按语义分块）

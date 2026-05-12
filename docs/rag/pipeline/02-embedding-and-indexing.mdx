@@ -1,0 +1,174 @@
+---
+title: "嵌入与索引"
+sidebar_position: 2
+excerpt: "将文本转化为向量：选择合适的 Embedding 模型，构建高效的向量索引。"
+---
+
+# 嵌入与索引
+
+文本无法直接在数学空间中进行"相似"比较。Embedding（嵌入）模型将文本映射到高维向量空间，语义相近的文本在空间中距离更近。这是 RAG 检索能力的数学基础。
+
+## Embedding 模型选择
+
+### 主流模型对比
+
+| 模型 | 维度 | 语言支持 | 特点 | 适用场景 |
+|------|------|----------|------|----------|
+| **text-embedding-3-small** | 1536 | 多语言 | OpenAI 出品，性价比好 | 通用场景、快速原型 |
+| **text-embedding-3-large** | 3072 | 多语言 | 高质量，高维度 | 生产环境、精度要求高 |
+| **bge-large-zh** | 1024 | 中文优化 | 中文效果领先 | 中文为主的 RAG |
+| **bge-m3** | 1024 | 100+ 语言 | 多语言、多粒度 | 跨语言检索 |
+| **all-MiniLM-L6-v2** | 384 | 英语为主 | 轻量、本地运行 | 资源受限、本地部署 |
+| **E5** 系列 | 1024 | 多语言 | 专为检索任务训练 | 生产级检索系统 |
+
+### 选择原则
+
+```python
+# 关键指标不是"哪个模型最强"，而是"哪个模型最适合你的数据"
+
+# 1. 领域相关性
+# 医疗文档 → 用医学领域微调过的模型
+# 法律文档 → 用法律领域 Embedding
+
+# 2. 语言匹配
+# 90% 中文内容 → 选中文优化模型（bge-zh、m3e）
+
+# 3. 维度与延迟权衡
+# 高维 = 更丰富的语义表达 = 更大的存储和计算开销
+```
+
+## 生成 Embedding
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def get_embedding(text: str, model: str = "text-embedding-3-small") -> list[float]:
+    """将单条文本转为向量。"""
+    response = client.embeddings.create(
+        input=text,
+        model=model
+    )
+    return response.data[0].embedding
+
+# 批量处理（推荐）
+def get_embeddings_batch(texts: list[str], model: str = "text-embedding-3-small") -> list[list[float]]:
+    """批量生成 embedding，API 调用更高效。"""
+    response = client.embeddings.create(
+        input=texts,
+        model=model
+    )
+    # 按 input index 排序（API 不保证返回顺序）
+    return [r.embedding for r in sorted(response.data, key=lambda x: x.index)]
+```
+
+## 向量索引
+
+生成 embedding 后，需要一个数据结构来高效存储和检索向量。常见选择：
+
+### 1. FAISS（本地/内存）
+
+```python
+import faiss
+import numpy as np
+
+# 假设 embeddings 是 N x D 的 numpy 数组
+dimension = 1536
+index = faiss.IndexFlatIP(dimension)  # 内积 = 余弦相似度（需先归一化）
+
+# 归一化（让内积等价于余弦相似度）
+embeddings_norm = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+index.add(embeddings_norm.astype('float32'))
+
+# 搜索 Top-K
+def search(query_embedding: np.ndarray, k: int = 5) -> tuple:
+    query_norm = query_embedding / np.linalg.norm(query_embedding)
+    distances, indices = index.search(
+        query_norm.reshape(1, -1).astype('float32'), k
+    )
+    return distances[0], indices[0]
+```
+
+| 优点 | 缺点 |
+|------|------|
+| 纯本地，无外部依赖 | 索引在内存中，大库需大量 RAM |
+| 检索极快（毫秒级） | 无持久化，需手动保存/加载 |
+| 支持 GPU 加速 | 无元数据过滤能力 |
+
+### 2. HNSW（近似最近邻）
+
+当向量数量超过百万级时，暴力搜索（IndexFlat）太慢，需要用近似算法：
+
+```python
+# HNSW = Hierarchical Navigable Small World
+# 用图结构近似最近邻，牺牲少量精度换取数量级速度提升
+
+index = faiss.IndexHNSWFlat(dimension, 32)  # 32 = 每个节点的邻居数
+index.hnsw.efConstruction = 200  # 建图质量
+index.add(embeddings_norm.astype('float32'))
+
+index.hnsw.efSearch = 128  # 搜索精度-速度权衡
+```
+
+### 3. 向量数据库（生产推荐）
+
+| 数据库 | 特点 | 适用场景 |
+|--------|------|----------|
+| **Pinecone** | 全托管、自动扩缩容 | 快速上线、不想运维 |
+| **Milvus/Zilliz** | 开源、功能丰富 | 大规模、需要灵活控制 |
+| **Chroma** | 轻量、Python 原生 | 原型开发、本地测试 |
+| **Qdrant** | Rust 实现、高性能 | 自托管、性能敏感 |
+| **pgvector** | PostgreSQL 扩展 | 已有 PG 基础设施 |
+
+```python
+# Chroma 示例
+import chromadb
+
+client = chromadb.Client()
+collection = client.create_collection("my_docs")
+
+# 添加文档
+collection.add(
+    documents=[chunk.content for chunk in chunks],
+    metadatas=[{"source": chunk.source} for chunk in chunks],
+    ids=[f"chunk_{i}" for i in range(len(chunks))]
+)
+
+# 检索
+results = collection.query(
+    query_texts=["什么是 RAG?"],
+    n_results=5,
+    where={"doc_type": "pdf"}  # 元数据过滤
+)
+```
+
+## 索引更新策略
+
+生产环境中数据是持续变化的：
+
+```python
+# 增量更新：只处理新增/修改的文档
+class IncrementalIndexer:
+    def __init__(self):
+        self.processed_hashes = set()  # 已处理文档的哈希
+
+    def index_new_documents(self, documents: list[DocumentChunk]):
+        new_docs = [d for d in documents
+                    if hash(d.content) not in self.processed_hashes]
+        if new_docs:
+            embeddings = get_embeddings_batch([d.content for d in new_docs])
+            # 添加到索引...
+            for d in new_docs:
+                self.processed_hashes.add(hash(d.content))
+```
+
+## 关键参数总结
+
+| 参数 | 含义 | 建议值 |
+|------|------|--------|
+| `chunk_size` | 分块大小 | 200-1000 tokens，视场景 |
+| `embedding_dim` | 向量维度 | 768-3072 |
+| `top_k` | 检索返回数 | 5-20（多了噪声大，少了召回不足） |
+| `ef_search` (HNSW) | 搜索精度 | 64-256 |
+| `M` (HNSW) | 图连接度 | 16-64 |

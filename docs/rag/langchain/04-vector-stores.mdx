@@ -1,0 +1,222 @@
+---
+title: "向量存储"
+sidebar_position: 4
+excerpt: "将分块后的文档向量化并存储：LangChain 集成 FAISS、Chroma、Pinecone 等主流向量数据库的方法与对比。"
+---
+
+# 向量存储
+
+文本分割后，需要将每个块的 embedding 存入向量数据库，以便后续检索。LangChain 统一了各种向量存储的接口，切换后端只需改一行代码。
+
+## 统一接口
+
+所有向量存储都实现了相同的接口：
+
+| 方法 | 用途 |
+|------|------|
+| `.add_documents(docs)` | 添加文档并自动计算 embedding |
+| `.add_texts(texts, metadatas)` | 添加纯文本 |
+| `.similarity_search(query, k)` | 相似度检索 |
+| `.similarity_search_with_score(query, k)` | 带分数的检索 |
+| `.as_retriever()` | 转为检索器对象 |
+
+## Chroma（本地/快速原型）
+
+Chroma 是纯 Python 的轻量向量数据库，适合本地开发和原型验证。
+
+```python
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+
+# 初始化
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+vectorstore = Chroma(
+    collection_name="my_collection",
+    embedding_function=embeddings,
+    persist_directory="./chroma_db",  # 持久化目录
+)
+
+# 添加文档
+# all_splits 是上一章 text_splitter.split_documents() 的结果
+vectorstore.add_documents(all_splits)
+
+# 检索
+results = vectorstore.similarity_search(
+    "什么是 RAG?",
+    k=3,
+    filter={"source": "docs/intro.md"}  # 元数据过滤
+)
+
+for doc in results:
+    print(f"来源: {doc.metadata['source']}")
+    print(f"内容: {doc.page_content[:150]}...\n")
+```
+
+### 持久化与加载
+
+```python
+# 数据会自动持久化到 persist_directory
+# 下次启动时直接加载：
+vectorstore = Chroma(
+    collection_name="my_collection",
+    embedding_function=embeddings,
+    persist_directory="./chroma_db",
+)
+```
+
+## FAISS（本地/高性能）
+
+FAISS 是 Meta 开源的向量检索库，纯本地运行，检索速度极快。
+
+```python
+from langchain_community.vectorstores import FAISS
+
+# 创建索引
+vectorstore = FAISS.from_documents(
+    all_splits,
+    embeddings,
+)
+
+# 保存到磁盘
+vectorstore.save_local("faiss_index")
+
+# 从磁盘加载
+vectorstore = FAISS.load_local(
+    "faiss_index",
+    embeddings,
+    allow_dangerous_deserialization=True,  # 信任本地文件
+)
+
+# 检索（返回带分数的结果）
+results = vectorstore.similarity_search_with_score(
+    "什么是 RAG?", k=3
+)
+
+for doc, score in results:
+    print(f"分数: {score:.4f}")
+    print(f"内容: {doc.page_content[:150]}...\n")
+```
+
+### FAISS 的索引类型
+
+```python
+import faiss
+
+# 默认使用 IndexFlatL2（精确搜索，适合小数据）
+# 大数据量时切换到近似索引：
+
+index = faiss.IndexHNSWFlat(1536, 32)  # 1536维，32邻居
+index.hnsw.efConstruction = 200
+
+vectorstore = FAISS(
+    embedding_function=embeddings.embed_query,
+    index=index,
+    docstore=...,      # 文档存储
+    index_to_docstore_id=...,  # 映射关系
+)
+```
+
+## Pinecone（云托管）
+
+Pinecone 是全托管的向量数据库，无需运维。
+
+```python
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone
+
+# 初始化客户端
+pc = Pinecone(api_key="your-api-key")
+index = pc.Index("my-index")
+
+# 创建向量存储
+vectorstore = PineconeVectorStore(
+    index=index,
+    embedding=embeddings,
+    namespace="rag-tutorial",  # 命名空间隔离
+)
+
+# 添加文档
+vectorstore.add_documents(all_splits)
+
+# 检索
+results = vectorstore.similarity_search("什么是 RAG?", k=3)
+```
+
+## 从文本直接创建（一步到位）
+
+如果不需要复杂的分块控制，可以用便捷方法一步完成：
+
+```python
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# 从文档加载器直接创建向量存储
+from langchain_community.document_loaders import TextLoader
+
+loader = TextLoader("docs/article.txt")
+vectorstore = Chroma.from_documents(
+    loader.load_and_split(
+        RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    ),
+    OpenAIEmbeddings(),
+    persist_directory="./chroma_db",
+)
+```
+
+## 增量更新
+
+生产环境中文档是持续变化的：
+
+```python
+# 添加新文档
+new_docs = new_loader.load()
+new_splits = text_splitter.split_documents(new_docs)
+vectorstore.add_documents(new_splits)
+
+# 删除文档（通过 metadata 过滤）
+# Chroma 示例：
+vectorstore._collection.delete(
+    where={"source": "docs/outdated.md"}
+)
+
+# FAISS 不支持直接删除，需要重建索引
+```
+
+## 向量存储对比
+
+| 特性 | Chroma | FAISS | Pinecone | Milvus |
+|------|--------|-------|----------|--------|
+| 部署方式 | 本地/嵌入式 | 本地 | 云托管 | 本地/云 |
+| 持久化 | 自动 | 手动 save/load | 自动 | 自动 |
+| 元数据过滤 | 支持 | 不支持 | 支持 | 支持 |
+| 大规模数据 | 一般 | 优秀（HNSW） | 优秀 | 优秀 |
+| 运维成本 | 无 | 无 | 按量付费 | 中等 |
+| 推荐场景 | 原型/本地 | 本地生产 | 云生产 | 企业级 |
+
+## 转为检索器
+
+向量存储可以直接转为 LangChain 的检索器接口：
+
+```python
+# 基础检索器
+retriever = vectorstore.as_retriever(
+    search_type="similarity",      # 或 "mmr"
+    search_kwargs={"k": 5},        # 返回5个结果
+)
+
+# 带分数阈值的检索器
+retriever = vectorstore.as_retriever(
+    search_type="similarity_score_threshold",
+    search_kwargs={"k": 5, "score_threshold": 0.7},
+)
+
+# MMR（最大边际相关性）检索器
+# 在相似度和多样性之间做权衡
+retriever = vectorstore.as_retriever(
+    search_type="mmr",
+    search_kwargs={"k": 5, "fetch_k": 20, "lambda_mult": 0.5},
+)
+# fetch_k=20: 先取20个，再用MMR选5个
+# lambda_mult: 相似度 vs 多样性的权衡，0=最多样，1=最相似
+```

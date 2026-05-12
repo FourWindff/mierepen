@@ -1,0 +1,43 @@
+---
+title: "LangChain 实现"
+sidebar_position: 0
+excerpt: "用 LangChain 框架快速搭建工业级 RAG 系统，涵盖文档加载、分割、向量存储、检索器和完整 RAG 链。"
+---
+
+# LangChain 实现
+
+本分组使用 **LangChain** —— 当前最主流的 LLM 应用开发框架 —— 来实战搭建 RAG 系统。相比手动实现每个环节，LangChain 提供了高度抽象的组件和链式组合能力，让你能够用几十行代码搭建出生产可用的 RAG 流程。
+
+## 为什么选择 LangChain
+
+| 优势 | 说明 |
+|------|------|
+| **组件化设计** | 文档加载器、文本分割器、向量存储、检索器都是可插拔组件 |
+| **链式组合** | 用 `\|` 管道符像搭积木一样组合流程 |
+| **多后端支持** | 同一套代码可切换 OpenAI、Anthropic、本地模型等 |
+| **生态丰富** | 100+ 文档加载器、50+ 向量存储集成 |
+| **生产特性** | 内置缓存、重试、流式输出、追踪（LangSmith） |
+
+## 本分组章节
+
+1. **LangChain 概述** — 核心概念和架构理解
+2. **文档加载器** — 从各种来源加载文档
+3. **文本分割器** — LangChain 内置的分块策略
+4. **向量存储** — 集成 FAISS、Chroma、Pinecone 等
+5. **检索器** — 向量检索器、多查询检索器、父文档检索器
+6. **RAG 链** — 组装完整的检索-生成流程
+
+## 安装
+
+```bash
+pip install langchain langchain-openai langchain-community
+
+# 根据使用的向量存储额外安装
+pip install faiss-cpu      # 或 faiss-gpu
+pip install chromadb
+# pip install pinecone-client
+```
+
+<Callout type="info" title="版本说明">
+本教程基于 LangChain 0.3.x / LangChain Expression Language (LCEL) 写法。如果你看到旧版 `LLMChain` 风格的代码，那是 Legacy API，建议迁移到 LCEL。
+</Callout>
