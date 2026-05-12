@@ -36,7 +36,7 @@ declare module 'virtual:docs-index' {
     slug: string
     title: string
     hasIndex: boolean
-    indexImportPath: string
+    indexImportPath: string | null
     chapters: TutorialChapterMeta[]
   }
 

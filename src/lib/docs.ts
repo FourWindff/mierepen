@@ -2,6 +2,12 @@ import type { ComponentType, ReactNode } from 'react'
 import type { MDXComponents } from 'mdx/types'
 import { tutorialMap, tutorials } from 'virtual:docs-index'
 
+export interface TutorialHeadingMeta {
+  id: string
+  text: string
+  level: number
+}
+
 export interface TutorialChapterMeta {
   slug: string
   title: string
@@ -12,17 +18,11 @@ export interface TutorialChapterMeta {
   groupSlug: string | null
 }
 
-export interface TutorialHeadingMeta {
-  id: string
-  text: string
-  level: number
-}
-
 export interface TutorialGroupMeta {
   slug: string
   title: string
   hasIndex: boolean
-  indexImportPath: string
+  indexImportPath: string | null
   chapters: TutorialChapterMeta[]
 }
 
@@ -47,12 +47,19 @@ export interface TutorialChapter extends TutorialChapterMeta {
   Component: ComponentType<MDXComponentProps>
 }
 
+export interface TutorialGroup extends TutorialGroupMeta {
+  chapters: TutorialChapter[]
+  IndexComponent: ComponentType<MDXComponentProps> | null
+}
+
 export interface Tutorial {
   meta: TutorialMeta
   chapters: TutorialChapter[]
+  topLevelChapters: TutorialChapter[]
+  groups: TutorialGroup[]
 }
 
-const tutorialModules = import.meta.glob('../../docs/*/*.mdx')
+const tutorialModules = import.meta.glob('../../docs/*/**/*.mdx')
 
 export function getAllTutorials(): TutorialMeta[] {
   return tutorials
@@ -62,18 +69,39 @@ export async function getTutorialBySlug(slug: string): Promise<Tutorial | null> 
   const meta = tutorialMap[slug] as TutorialMeta | undefined
   if (!meta) return null
 
-  const chapters = await Promise.all(
-    meta.chapters.map(async (chapter) => {
-      const loader = tutorialModules[chapter.importPath]
-      if (!loader) {
-        throw new Error(`Missing MDX module for ${chapter.importPath}`)
+  const loadChapter = async (chapterMeta: TutorialChapterMeta): Promise<TutorialChapter> => {
+    const loader = tutorialModules[chapterMeta.importPath]
+    if (!loader) {
+      throw new Error(`Missing MDX module for ${chapterMeta.importPath}`)
+    }
+
+    const mod = (await loader()) as { default: ComponentType<MDXComponentProps> }
+
+    return {
+      ...chapterMeta,
+      Component: mod.default,
+    }
+  }
+
+  const chapters = await Promise.all(meta.chapters.map(loadChapter))
+  const topLevelChapters = await Promise.all(meta.topLevelChapters.map(loadChapter))
+
+  const groups = await Promise.all(
+    meta.groups.map(async (groupMeta) => {
+      let IndexComponent: ComponentType<MDXComponentProps> | null = null
+
+      if (groupMeta.indexImportPath) {
+        const loader = tutorialModules[groupMeta.indexImportPath]
+        if (loader) {
+          const mod = (await loader()) as { default: ComponentType<MDXComponentProps> }
+          IndexComponent = mod.default
+        }
       }
 
-      const mod = (await loader()) as { default: ComponentType<MDXComponentProps> }
-
       return {
-        ...chapter,
-        Component: mod.default,
+        ...groupMeta,
+        chapters: await Promise.all(groupMeta.chapters.map(loadChapter)),
+        IndexComponent,
       }
     }),
   )
@@ -81,5 +109,7 @@ export async function getTutorialBySlug(slug: string): Promise<Tutorial | null> 
   return {
     meta,
     chapters,
+    topLevelChapters,
+    groups,
   }
 }
