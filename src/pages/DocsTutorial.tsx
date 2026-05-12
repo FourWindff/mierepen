@@ -438,51 +438,37 @@ function GroupedSidebar({
       {/* Groups */}
       {tutorial.groups.map((group) => {
         const isExpanded = expandedGroups.has(group.slug)
-        const isGroupActive = group.chapters.some((c) => c.slug === activeChapter.slug)
+        const isGroupActive =
+          group.chapters.some((c) => c.slug === activeChapter.slug) ||
+          activeChapter.slug === group.slug
 
         return (
           <div key={group.slug} className="mt-2">
-            <div
-              className={`flex items-center justify-between px-3 py-2 border-l transition-colors ${
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.slug)}
+              className={`w-full flex items-center justify-between px-3 py-2 border-l transition-colors cursor-pointer theme-surface-hover ${
                 isGroupActive
                   ? 'theme-border-primary'
                   : 'border-transparent'
               }`}
+              aria-expanded={isExpanded}
             >
-              {group.hasIndex ? (
-                <Link
-                  to={`/docs/${tutorial.meta.slug}/${group.slug}`}
-                  className={`font-bold leading-tight flex-1 ${
-                    isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
-                  }`}
-                >
-                  {group.title}
-                </Link>
-              ) : (
-                <span className={`font-bold leading-tight flex-1 ${
+              <span
+                className={`font-bold leading-tight flex-1 text-left ${
                   isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
-                }`}>
-                  {group.title}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.slug)}
-                className="theme-text-muted theme-text-hover-primary p-1 transition-colors"
-                aria-expanded={isExpanded}
-                aria-label={
-                  isExpanded
-                    ? `Collapse ${group.title} chapters`
-                    : `Expand ${group.title} chapters`
-                }
+                }`}
               >
+                {group.title}
+              </span>
+              <span className="theme-text-muted theme-text-hover-primary p-1 transition-colors">
                 {isExpanded ? (
                   <ChevronDown size={16} />
                 ) : (
                   <ChevronRight size={16} />
                 )}
-              </button>
-            </div>
+              </span>
+            </button>
             <AnimatePresence initial={false}>
               {isExpanded && (
                 <motion.div
@@ -493,6 +479,17 @@ function GroupedSidebar({
                   className="overflow-hidden"
                 >
                   <div className="pl-4">
+                    {group.hasIndex && (
+                      <Link
+                        to={`/docs/${tutorial.meta.slug}/${group.slug}`}
+                        className="block px-3 py-2 border-l border-transparent theme-border-hover theme-text-secondary text-sm"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-0.5">00</span>
+                          <div className="leading-tight">概览</div>
+                        </div>
+                      </Link>
+                    )}
                     {group.chapters.map((chapter) => renderChapterLink(chapter, true))}
                   </div>
                 </motion.div>
