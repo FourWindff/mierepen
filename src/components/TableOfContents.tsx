@@ -48,17 +48,31 @@ export function useTableOfContents(
 
       const elements = container.querySelectorAll('h2, h3, h4, h5, h6')
       const items: HeadingItem[] = []
+      const usedIds = new Set<string>()
 
       elements.forEach((el) => {
         const level = parseInt(el.tagName[1], 10)
         let id = el.id
 
-        // Generate id if missing
-        if (!id) {
-          id = el.textContent?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '') || ''
+        // Generate id if missing or duplicate
+        if (!id || usedIds.has(id)) {
+          let baseId =
+            el.textContent
+              ?.toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/[^\p{L}\p{N}\-]/gu, '')
+              .replace(/^-+|-+$/g, '') || 'heading'
+
+          id = baseId
+          let counter = 1
+          while (usedIds.has(id)) {
+            id = `${baseId}-${counter}`
+            counter++
+          }
           el.id = id
         }
 
+        usedIds.add(id)
         items.push({
           id,
           text: el.textContent || '',
