@@ -29,6 +29,15 @@ declare module 'virtual:docs-index' {
     excerpt: string
     importPath: string
     headings: TutorialHeadingMeta[]
+    groupSlug: string | null
+  }
+
+  export interface TutorialGroupMeta {
+    slug: string
+    title: string
+    hasIndex: boolean
+    indexImportPath: string
+    chapters: TutorialChapterMeta[]
   }
 
   export interface TutorialMeta {
@@ -37,7 +46,10 @@ declare module 'virtual:docs-index' {
     summary: string
     date: string
     label: string
+    hasGroups: boolean
     chapters: TutorialChapterMeta[]
+    topLevelChapters: TutorialChapterMeta[]
+    groups: TutorialGroupMeta[]
   }
 
   export const tutorials: TutorialMeta[]

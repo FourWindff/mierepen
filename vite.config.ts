@@ -216,24 +216,38 @@ function docsIndexPlugin() {
         return fs.statSync(fullPath).isDirectory()
       })
 
+      interface ChapterMeta {
+        slug: string
+        title: string
+        sidebarPosition: number
+        excerpt: string
+        importPath: string
+        headings: Array<{
+          id: string
+          text: string
+          level: number
+        }>
+        groupSlug: string | null
+      }
+
+      interface GroupMeta {
+        slug: string
+        title: string
+        hasIndex: boolean
+        indexImportPath: string
+        chapters: ChapterMeta[]
+      }
+
       const tutorials: Array<{
         slug: string
         title: string
         summary: string
         date: string
         label: string
-        chapters: Array<{
-          slug: string
-          title: string
-          sidebarPosition: number
-          excerpt: string
-          importPath: string
-          headings: Array<{
-            id: string
-            text: string
-            level: number
-          }>
-        }>
+        hasGroups: boolean
+        chapters: ChapterMeta[]
+        topLevelChapters: ChapterMeta[]
+        groups: GroupMeta[]
       }> = []
 
       for (const slug of tutorialDirs) {
@@ -241,18 +255,28 @@ function docsIndexPlugin() {
         const metadataPath = path.join(tutorialDir, 'metadata.json')
         if (!fs.existsSync(metadataPath)) continue
 
-        let metadata: Record<string, string>
+        let metadata: Record<string, unknown>
         try {
-          metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as Record<string, string>
+          metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as Record<string, unknown>
         } catch {
           continue
         }
 
-        const chapterFiles = fs
-          .readdirSync(tutorialDir)
-          .filter((file) => file.endsWith('.mdx'))
+        const title = String(metadata.title ?? '')
+        const summary = String(metadata.summary ?? '')
+        const date = String(metadata.date ?? '')
+        const label = String(metadata.label || 'Tutorial')
+        if (!title || !summary || !date) {
+          continue
+        }
 
-        const chapters = chapterFiles
+        const entries = fs.readdirSync(tutorialDir)
+
+        // Top-level chapters: .mdx files excluding index.mdx
+        const topLevelFiles = entries.filter(
+          (name) => name.endsWith('.mdx') && name !== 'index.mdx',
+        )
+        const topLevelChapters: ChapterMeta[] = topLevelFiles
           .map((fileName) => {
             const chapterPath = path.join(tutorialDir, fileName)
             const raw = fs.readFileSync(chapterPath, 'utf-8')
@@ -270,22 +294,97 @@ function docsIndexPlugin() {
               excerpt: String(data.excerpt ?? ''),
               importPath: toImportPath(`../../docs/${slug}/${fileName}`),
               headings: extractMdxHeadings(raw),
+              groupSlug: null,
             }
           })
           .filter((chapter): chapter is NonNullable<typeof chapter> => chapter !== null)
           .sort((a, b) => a.sidebarPosition - b.sidebarPosition)
 
-        if (!metadata.title || !metadata.summary || !metadata.date || chapters.length === 0) {
-          continue
-        }
+        // Groups: subdirectories with .mdx files
+        const groupDirs = entries
+          .filter((name) => {
+            const fullPath = path.join(tutorialDir, name)
+            return fs.statSync(fullPath).isDirectory()
+          })
+
+        const groups: GroupMeta[] = groupDirs
+          .map((groupSlug) => {
+            const groupDir = path.join(tutorialDir, groupSlug)
+            const groupEntries = fs.readdirSync(groupDir)
+            const hasIndex = groupEntries.includes('index.mdx')
+            const indexImportPath = hasIndex
+              ? toImportPath(`../../docs/${slug}/${groupSlug}/index.mdx`)
+              : ''
+
+            const groupFiles = groupEntries.filter(
+              (name) => name.endsWith('.mdx') && name !== 'index.mdx',
+            )
+            const groupChapters: ChapterMeta[] = groupFiles
+              .map((fileName) => {
+                const chapterPath = path.join(groupDir, fileName)
+                const raw = fs.readFileSync(chapterPath, 'utf-8')
+                const { data } = matter(raw)
+
+                const sidebarPosition = Number(data.sidebar_position)
+                if (!data.title || Number.isNaN(sidebarPosition)) {
+                  return null
+                }
+
+                return {
+                  slug: fileName.replace(/\.mdx$/, ''),
+                  title: String(data.title),
+                  sidebarPosition,
+                  excerpt: String(data.excerpt ?? ''),
+                  importPath: toImportPath(`../../docs/${slug}/${groupSlug}/${fileName}`),
+                  headings: extractMdxHeadings(raw),
+                  groupSlug,
+                }
+              })
+              .filter((chapter): chapter is NonNullable<typeof chapter> => chapter !== null)
+              .sort((a, b) => a.sidebarPosition - b.sidebarPosition)
+
+            return {
+              slug: groupSlug,
+              title: groupSlug,
+              hasIndex,
+              indexImportPath,
+              chapters: groupChapters,
+            }
+          })
+          .filter((group) => group.chapters.length > 0 || group.hasIndex)
+
+        // Sort groups by metadata.groups order, then alphabetically for unlisted
+        const groupsOrder = Array.isArray(metadata.groups)
+          ? metadata.groups.filter((g): g is string => typeof g === 'string')
+          : []
+        const groupOrderMap = new Map(groupsOrder.map((g, i) => [g, i]))
+        groups.sort((a, b) => {
+          const orderA = groupOrderMap.get(a.slug)
+          const orderB = groupOrderMap.get(b.slug)
+          if (orderA !== undefined && orderB !== undefined) {
+            return orderA - orderB
+          }
+          if (orderA !== undefined) return -1
+          if (orderB !== undefined) return 1
+          return a.slug.localeCompare(b.slug)
+        })
+
+        const allChapters: ChapterMeta[] = [
+          ...topLevelChapters,
+          ...groups.flatMap((g) => g.chapters),
+        ]
+        const hasGroups = groups.length > 0
 
         tutorials.push({
           slug,
-          title: metadata.title,
-          summary: metadata.summary,
-          date: metadata.date,
-          label: metadata.label || 'Tutorial',
-          chapters,
+          title,
+          summary,
+          date,
+          label,
+          hasGroups,
+          chapters: allChapters,
+          topLevelChapters,
+          groups,
         })
       }
 

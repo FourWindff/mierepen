@@ -9,6 +9,7 @@ export interface TutorialChapterMeta {
   excerpt: string
   importPath: string
   headings: TutorialHeadingMeta[]
+  groupSlug: string | null
 }
 
 export interface TutorialHeadingMeta {
@@ -17,13 +18,24 @@ export interface TutorialHeadingMeta {
   level: number
 }
 
+export interface TutorialGroupMeta {
+  slug: string
+  title: string
+  hasIndex: boolean
+  indexImportPath: string
+  chapters: TutorialChapterMeta[]
+}
+
 export interface TutorialMeta {
   slug: string
   title: string
   summary: string
   date: string
   label: string
+  hasGroups: boolean
   chapters: TutorialChapterMeta[]
+  topLevelChapters: TutorialChapterMeta[]
+  groups: TutorialGroupMeta[]
 }
 
 export interface MDXComponentProps {
