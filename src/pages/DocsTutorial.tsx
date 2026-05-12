@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { getTutorialBySlug, type Tutorial } from '../lib/docs'
@@ -384,10 +384,12 @@ function GroupedSidebar({
   tutorial: Tutorial
   activeChapter: Tutorial['chapters'][number]
 }) {
+  const navigate = useNavigate()
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     const initial = new Set<string>()
     for (const group of tutorial.groups) {
-      if (group.chapters.some((c) => c.slug === activeChapter.slug)) {
+      if (group.chapters.some((c) => c.slug === activeChapter.slug) || activeChapter.slug === group.slug) {
         initial.add(group.slug)
       }
     }
@@ -404,6 +406,13 @@ function GroupedSidebar({
       }
       return next
     })
+  }
+
+  const handleGroupClick = (group: Tutorial['groups'][number]) => {
+    toggleGroup(group.slug)
+    if (group.hasIndex) {
+      navigate(`/docs/${tutorial.meta.slug}/${group.slug}`)
+    }
   }
 
   const renderChapterLink = (chapter: Tutorial['chapters'][number], isNested = false) => {
@@ -448,7 +457,7 @@ function GroupedSidebar({
           <div key={group.slug} className="mt-2">
             <button
               type="button"
-              onClick={() => toggleGroup(group.slug)}
+              onClick={() => handleGroupClick(group)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded transition-colors cursor-pointer theme-surface-hover ${
                 isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
               }`}
@@ -476,20 +485,6 @@ function GroupedSidebar({
                   className="overflow-hidden"
                 >
                   <div className="pl-4">
-                    {group.hasIndex && (
-                      <Link
-                        to={`/docs/${tutorial.meta.slug}/${group.slug}`}
-                        className={`block px-3 py-2 rounded text-sm ${
-                          activeChapter.slug === group.slug ? 'theme-text-primary' : 'theme-text-secondary'
-                        }`}
-                        style={activeChapter.slug === group.slug ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-0.5">00</span>
-                          <div className="leading-tight">概览</div>
-                        </div>
-                      </Link>
-                    )}
                     {group.chapters.map((chapter) => renderChapterLink(chapter, true))}
                   </div>
                 </motion.div>
