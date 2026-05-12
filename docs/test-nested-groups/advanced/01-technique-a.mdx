@@ -1,9 +1,83 @@
 ---
-title: "技术 A"
+title: "混合检索"
 sidebar_position: 1
-excerpt: "高级技术 A 的介绍。"
+excerpt: "结合向量检索和关键词检索的高级技术。"
 ---
 
-# 技术 A
+# 混合检索
 
-高级技术 A 的内容。
+混合检索（Hybrid Search）结合了**语义检索**和**关键词检索**的优势，是目前生产环境中效果最好的检索策略之一。
+
+## 为什么需要混合检索
+
+向量检索和关键词检索各有优劣：
+
+| 维度 | 向量检索 | 关键词检索 |
+|------|---------|-----------|
+| 语义理解 | 强，能理解同义词和意图 | 弱，依赖精确匹配 |
+| 精确匹配 | 弱，可能漏掉专有名词 | 强，适合术语和 ID |
+| 计算成本 | 高，需要向量模型 | 低，倒排索引即可 |
+| 冷启动 | 需要预计算嵌入 | 无需预处理 |
+
+<Callout type="info" title="核心洞察">
+没有一种检索方式是万能的。向量检索擅长理解语义，关键词检索擅长精确匹配。混合使用可以互补短板。
+</Callout>
+
+## 融合公式
+
+混合检索的核心是将两种检索方式的得分融合为一个最终分数：
+
+```python
+def hybrid_score(vector_score, keyword_score, alpha=0.5):
+    """
+    alpha: 向量检索的权重，0-1 之间
+    """
+    # 对两种得分做归一化
+    vector_norm = normalize(vector_score)
+    keyword_norm = normalize(keyword_score)
+
+    # 加权融合
+    return alpha * vector_norm + (1 - alpha) * keyword_norm
+```
+
+<Callout type="warning" title="alpha 调参">
+`alpha` 的取值直接影响检索效果：
+
+- `alpha = 0.7`：更侧重语义理解（适合开放性问题）
+- `alpha = 0.3`：更侧重精确匹配（适合技术文档查询）
+- `alpha = 0.5`：平衡两者（通用场景默认值）
+
+建议根据实际业务场景通过 A/B 测试确定最优值。
+</Callout>
+
+## 常见融合策略
+
+<Collapse question="RRF（Reciprocal Rank Fusion）是什么？">
+RRF 是一种不依赖原始分数的融合方法，只使用排名信息：
+
+```python
+def rrf_fusion(vector_ranks, keyword_ranks, k=60):
+    scores = {}
+    for doc_id, rank in vector_ranks.items():
+        scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank)
+    for doc_id, rank in keyword_ranks.items():
+        scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank)
+    return sorted(scores.items(), key=lambda x: -x[1])
+```
+
+RRF 的优势是不需要调整分数的尺度，对各种检索方式都很鲁棒。`k` 是一个常数（通常取 60），用于平滑低排名的影响。
+</Collapse>
+
+<Collapse question="什么时候不需要混合检索？">
+以下场景可能不需要混合检索：
+
+1. **纯语义搜索场景**：如"找一篇关于气候变化的文章"，向量检索足够
+2. **数据量极小**：只有几十篇文档时，检索召回率已经足够高
+3. **延迟敏感场景**：混合检索会增加延迟，如果业务对响应时间要求极高，可能需要取舍
+
+在这些场景下，单一检索方式可能更简单高效。
+</Collapse>
+
+<Callout type="error" title="生产环境陷阱">
+不要在没有评估的情况下直接上线混合检索。务必建立一个评估集（如 100 个问答对），对比向量检索、关键词检索和混合检索的召回率与精确率，用数据说话。
+</Callout>

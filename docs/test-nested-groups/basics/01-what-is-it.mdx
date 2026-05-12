@@ -1,9 +1,50 @@
 ---
-title: "这是什么"
+title: "什么是 RAG"
 sidebar_position: 1
-excerpt: "基础概念介绍。"
+excerpt: "RAG 的基本概念和工作原理。"
 ---
 
-# 这是什么
+# 什么是 RAG
 
-基础概念介绍内容。
+RAG（Retrieval-Augmented Generation，检索增强生成）是一种将外部知识检索与大语言模型生成能力相结合的架构。
+
+## 核心思想
+
+与其让模型凭空回答，不如先让它去查资料，然后基于查到的资料来回答。
+
+```python
+# 伪代码示意
+class SimpleRAG:
+    def answer(self, query: str) -> str:
+        # 1. 检索相关文档
+        docs = self.retriever.search(query)
+        # 2. 将文档作为上下文输入模型
+        context = "\n".join(docs)
+        # 3. 生成回答
+        return self.llm.generate(query, context)
+```
+
+## 常见疑问
+
+<Collapse question="RAG 和微调有什么区别？">
+RAG 和微调是两种不同的增强大模型能力的方式：
+
+- **RAG**：动态检索外部知识，知识更新成本低，适合知识频繁变化的场景
+- **微调**：修改模型参数，让模型"记住"特定知识，适合需要改变模型行为风格的场景
+
+在实际应用中，两者可以结合使用。
+</Collapse>
+
+<Collapse question="RAG 能解决幻觉问题吗？">
+RAG 能显著降低幻觉，但不能完全消除。幻觉产生的原因包括：
+
+1. 检索到的文档本身包含错误信息
+2. 模型错误理解了检索结果
+3. 检索阶段没有找到相关文档
+
+因此，在关键场景中仍建议保留人工审核环节。
+</Collapse>
+
+<Callout type="error" title="常见误区">
+不要认为有了 RAG 模型就永远不会出错。检索质量决定了生成质量的上限 —— Garbage in, garbage out。
+</Callout>
