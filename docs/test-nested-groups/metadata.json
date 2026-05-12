@@ -1,0 +1,7 @@
+{
+  "title": "测试分组教程",
+  "summary": "用于验证二级目录分组功能的测试教程。",
+  "date": "2026-05-12",
+  "label": "Test",
+  "groups": ["basics", "advanced"]
+}
