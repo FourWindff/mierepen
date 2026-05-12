@@ -52,10 +52,23 @@ export default function DocsTutorial() {
 
     if (chapterSlug) {
       // Two-level route: /docs/tutorial/something
-      // Check if "something" is a known group slug
       const group = tutorial.groups.find((g) => g.slug === chapterSlug)
       if (group) {
-        // It's a group slug: show the first chapter of that group
+        // It's a group slug
+        if (group.IndexComponent) {
+          // Use index.mdx as a proxy chapter for rendering
+          return {
+            slug: group.slug,
+            title: group.title,
+            sidebarPosition: 0,
+            excerpt: '',
+            importPath: group.indexImportPath || '',
+            headings: [],
+            groupSlug: group.slug,
+            Component: group.IndexComponent,
+          } as Tutorial['chapters'][number]
+        }
+        // No index.mdx: show first chapter
         return group.chapters[0] ?? null
       }
       // Not a group slug: find a top-level chapter
