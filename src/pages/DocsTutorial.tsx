@@ -10,9 +10,10 @@ import TableOfContents, { useTableOfContents } from '../components/TableOfConten
 import type { HeadingItem } from '../components/TableOfContents'
 
 export default function DocsTutorial() {
-  const { tutorialSlug, chapterSlug } = useParams<{
+  const { tutorialSlug, chapterSlug, groupSlug } = useParams<{
     tutorialSlug: string
     chapterSlug?: string
+    groupSlug?: string
   }>()
   const location = useLocation()
   const [tutorial, setTutorial] = useState<Tutorial | null>(null)
@@ -34,8 +35,37 @@ export default function DocsTutorial() {
     }
   }, [tutorialSlug])
 
-  const activeChapter =
-    tutorial?.chapters.find((chapter) => chapter.slug === chapterSlug) ?? tutorial?.chapters[0]
+  const activeChapter = (() => {
+    if (!tutorial) return null
+
+    if (!tutorial.meta.hasGroups) {
+      // No groups: existing logic (backward compatible)
+      return tutorial.chapters.find((c) => c.slug === chapterSlug) ?? tutorial.chapters[0]
+    }
+
+    // Has groups: parse URL based on path segments
+    if (groupSlug && chapterSlug) {
+      // Three-level route: /docs/tutorial/group/chapter
+      const group = tutorial.groups.find((g) => g.slug === groupSlug)
+      return group?.chapters.find((c) => c.slug === chapterSlug) ?? null
+    }
+
+    if (chapterSlug) {
+      // Two-level route: /docs/tutorial/something
+      // Check if "something" is a known group slug
+      const group = tutorial.groups.find((g) => g.slug === chapterSlug)
+      if (group) {
+        // It's a group slug: show the first chapter of that group
+        return group.chapters[0] ?? null
+      }
+      // Not a group slug: find a top-level chapter
+      return tutorial.topLevelChapters.find((c) => c.slug === chapterSlug) ?? null
+    }
+
+    // No chapterSlug: show the first available content
+    return tutorial.topLevelChapters[0] ?? tutorial.groups[0]?.chapters[0] ?? null
+  })()
+
   const toc = useTableOfContents('article', activeChapter?.slug)
 
   useEffect(() => {
@@ -59,7 +89,7 @@ export default function DocsTutorial() {
     return () => {
       window.cancelAnimationFrame(frame)
     }
-  }, [activeChapter?.slug, location.hash, toc.headings])
+  }, [activeChapter, activeChapter?.slug, location.hash, toc.headings])
 
   if (tutorialSlug && loadedSlug !== tutorialSlug) {
     return (
@@ -116,7 +146,9 @@ export default function DocsTutorial() {
               {headings.map((heading) => (
                 <li key={heading.id}>
                   <Link
-                    to={`/docs/${tutorial.meta.slug}/${chapter.slug}#${heading.id}`}
+                    to={chapter.groupSlug
+                      ? `/docs/${tutorial.meta.slug}/${chapter.groupSlug}/${chapter.slug}#${heading.id}`
+                      : `/docs/${tutorial.meta.slug}/${chapter.slug}#${heading.id}`}
                     onClick={closeMenu}
                     className="theme-text-hover-primary theme-text-tertiary block w-full break-words py-1 pr-2 text-left text-xs leading-relaxed"
                     style={{ paddingLeft: `${heading.level - 1}rem` }}
@@ -162,7 +194,9 @@ export default function DocsTutorial() {
                       >
                         <div className="flex items-stretch">
                           <Link
-                            to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
+                            to={chapter.groupSlug
+                              ? `/docs/${tutorial.meta.slug}/${chapter.groupSlug}/${chapter.slug}`
+                              : `/docs/${tutorial.meta.slug}/${chapter.slug}`}
                             onClick={() => handleMobileChapterNavigation(closeMenu)}
                             className={`min-w-0 flex-1 px-3 py-3 ${
                               isActive ? 'theme-text-primary' : 'theme-text-secondary'
@@ -258,28 +292,35 @@ export default function DocsTutorial() {
                   </h2>
                 </div>
                 <nav className="p-2" aria-label={`${tutorial.meta.title} chapters`}>
-                  {tutorial.chapters.map((chapter) => {
-                    const isActive = chapter.slug === activeChapter.slug
+                  {tutorial.meta.hasGroups ? (
+                    <GroupedSidebar
+                      tutorial={tutorial}
+                      activeChapter={activeChapter}
+                    />
+                  ) : (
+                    tutorial.chapters.map((chapter) => {
+                      const isActive = chapter.slug === activeChapter.slug
 
-                    return (
-                      <Link
-                        key={chapter.slug}
-                        to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
-                        className={`block px-3 py-3 border-l transition-colors ${
-                          isActive
-                            ? 'theme-border-primary theme-text-primary'
-                            : 'border-transparent theme-border-hover theme-text-secondary'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
-                            {String(chapter.sidebarPosition).padStart(2, '0')}
-                          </span>
-                          <div className="font-bold leading-tight">{chapter.title}</div>
-                        </div>
-                      </Link>
-                    )
-                  })}
+                      return (
+                        <Link
+                          key={chapter.slug}
+                          to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
+                          className={`block px-3 py-3 border-l transition-colors ${
+                            isActive
+                              ? 'theme-border-primary theme-text-primary'
+                              : 'border-transparent theme-border-hover theme-text-secondary'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
+                              {String(chapter.sidebarPosition).padStart(2, '0')}
+                            </span>
+                            <div className="font-bold leading-tight">{chapter.title}</div>
+                          </div>
+                        </Link>
+                      )
+                    })
+                  )}
                 </nav>
               </div>
             </div>
@@ -318,6 +359,135 @@ export default function DocsTutorial() {
           </aside>
         </section>
       </div>
+    </div>
+  )
+}
+
+function GroupedSidebar({
+  tutorial,
+  activeChapter,
+}: {
+  tutorial: Tutorial
+  activeChapter: Tutorial['chapters'][number]
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    const initial = new Set<string>()
+    for (const group of tutorial.groups) {
+      if (group.chapters.some((c) => c.slug === activeChapter.slug)) {
+        initial.add(group.slug)
+      }
+    }
+    return initial
+  })
+
+  const toggleGroup = (groupSlug: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(groupSlug)) {
+        next.delete(groupSlug)
+      } else {
+        next.add(groupSlug)
+      }
+      return next
+    })
+  }
+
+  const renderChapterLink = (chapter: Tutorial['chapters'][number], isNested = false) => {
+    const isActive = chapter.slug === activeChapter.slug
+
+    return (
+      <Link
+        key={chapter.slug}
+        to={chapter.groupSlug
+          ? `/docs/${tutorial.meta.slug}/${chapter.groupSlug}/${chapter.slug}`
+          : `/docs/${tutorial.meta.slug}/${chapter.slug}`}
+        className={`block px-3 py-3 border-l transition-colors ${
+          isActive
+            ? 'theme-border-primary theme-text-primary'
+            : 'border-transparent theme-border-hover theme-text-secondary'
+        } ${isNested ? 'text-sm' : ''}`}
+      >
+        <div className="flex items-start gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
+            {String(chapter.sidebarPosition).padStart(2, '0')}
+          </span>
+          <div className="font-bold leading-tight">{chapter.title}</div>
+        </div>
+      </Link>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      {/* Top-level chapters */}
+      {tutorial.topLevelChapters.map((chapter) => renderChapterLink(chapter))}
+
+      {/* Groups */}
+      {tutorial.groups.map((group) => {
+        const isExpanded = expandedGroups.has(group.slug)
+        const isGroupActive = group.chapters.some((c) => c.slug === activeChapter.slug)
+
+        return (
+          <div key={group.slug} className="mt-2">
+            <div
+              className={`flex items-center justify-between px-3 py-2 border-l transition-colors ${
+                isGroupActive
+                  ? 'theme-border-primary'
+                  : 'border-transparent'
+              }`}
+            >
+              {group.hasIndex ? (
+                <Link
+                  to={`/docs/${tutorial.meta.slug}/${group.slug}`}
+                  className={`font-bold leading-tight flex-1 ${
+                    isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
+                  }`}
+                >
+                  {group.title}
+                </Link>
+              ) : (
+                <span className={`font-bold leading-tight flex-1 ${
+                  isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
+                }`}>
+                  {group.title}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.slug)}
+                className="theme-text-muted theme-text-hover-primary p-1 transition-colors"
+                aria-expanded={isExpanded}
+                aria-label={
+                  isExpanded
+                    ? `Collapse ${group.title} chapters`
+                    : `Expand ${group.title} chapters`
+                }
+              >
+                {isExpanded ? (
+                  <ChevronDown size={16} />
+                ) : (
+                  <ChevronRight size={16} />
+                )}
+              </button>
+            </div>
+            <AnimatePresence initial={false}>
+              {isExpanded && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pl-4">
+                    {group.chapters.map((chapter) => renderChapterLink(chapter, true))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )
+      })}
     </div>
   )
 }
