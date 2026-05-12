@@ -143,15 +143,31 @@ function normalizeHeadingText(raw: string) {
     .trim()
 }
 
-function createHeadingId(text: string) {
-  return text
+function createHeadingId(text: string, usedIds?: Set<string>): string {
+  let id = text
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\-]/g, '')
+    .replace(/[^\p{L}\p{N}\-]/gu, '')
+    .replace(/^-+|-+$/g, '')
+
+  if (!id) id = 'heading'
+
+  if (usedIds) {
+    let counter = 1
+    const baseId = id
+    while (usedIds.has(id)) {
+      id = `${baseId}-${counter}`
+      counter++
+    }
+    usedIds.add(id)
+  }
+
+  return id
 }
 
 function extractMdxHeadings(raw: string) {
   const headings: Array<{ id: string; text: string; level: number }> = []
+  const usedIds = new Set<string>()
   const lines = raw.split(/\r?\n/)
   let inFence = false
 
@@ -172,7 +188,7 @@ function extractMdxHeadings(raw: string) {
     if (!text) continue
 
     headings.push({
-      id: createHeadingId(text),
+      id: createHeadingId(text, usedIds),
       text,
       level: match[1].length,
     })
