@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -35,7 +35,7 @@ export default function DocsTutorial() {
     }
   }, [tutorialSlug])
 
-  const activeChapter = (() => {
+  const activeChapter = useMemo<Tutorial['chapters'][number] | null>(() => {
     if (!tutorial) return null
 
     if (!tutorial.meta.hasGroups) {
@@ -77,7 +77,7 @@ export default function DocsTutorial() {
 
     // No chapterSlug: show the first available content
     return tutorial.topLevelChapters[0] ?? tutorial.groups[0]?.chapters[0] ?? null
-  })()
+  }, [tutorial, chapterSlug, groupSlug])
 
   const toc = useTableOfContents('article', activeChapter?.slug)
 
