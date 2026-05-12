@@ -318,11 +318,12 @@ export default function DocsTutorial() {
                         <Link
                           key={chapter.slug}
                           to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
-                          className={`block px-3 py-3 border-l transition-colors ${
+                          className={`block px-3 py-3 rounded transition-colors ${
                             isActive
-                              ? 'theme-border-primary theme-text-primary'
-                              : 'border-transparent theme-border-hover theme-text-secondary'
+                              ? 'theme-text-primary'
+                              : 'theme-text-secondary'
                           }`}
+                          style={isActive ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
                         >
                           <div className="flex items-start gap-3">
                             <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
@@ -414,11 +415,12 @@ function GroupedSidebar({
         to={chapter.groupSlug
           ? `/docs/${tutorial.meta.slug}/${chapter.groupSlug}/${chapter.slug}`
           : `/docs/${tutorial.meta.slug}/${chapter.slug}`}
-        className={`block px-3 py-3 border-l transition-colors ${
+        className={`block px-3 py-3 rounded transition-colors ${
           isActive
-            ? 'theme-border-primary theme-text-primary'
-            : 'border-transparent theme-border-hover theme-text-secondary'
+            ? 'theme-text-primary'
+            : 'theme-text-secondary'
         } ${isNested ? 'text-sm' : ''}`}
+        style={isActive ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
       >
         <div className="flex items-start gap-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
@@ -447,21 +449,16 @@ function GroupedSidebar({
             <button
               type="button"
               onClick={() => toggleGroup(group.slug)}
-              className={`w-full flex items-center justify-between px-3 py-2 border-l transition-colors cursor-pointer theme-surface-hover ${
-                isGroupActive
-                  ? 'theme-border-primary'
-                  : 'border-transparent'
+              className={`w-full flex items-center justify-between px-3 py-2 rounded transition-colors cursor-pointer theme-surface-hover ${
+                isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
               }`}
+              style={isGroupActive ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
               aria-expanded={isExpanded}
             >
-              <span
-                className={`font-bold leading-tight flex-1 text-left ${
-                  isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
-                }`}
-              >
+              <span className="font-bold leading-tight flex-1 text-left">
                 {group.title}
               </span>
-              <span className="theme-text-muted theme-text-hover-primary p-1 transition-colors">
+              <span className="theme-text-muted p-1">
                 {isExpanded ? (
                   <ChevronDown size={16} />
                 ) : (
@@ -482,7 +479,10 @@ function GroupedSidebar({
                     {group.hasIndex && (
                       <Link
                         to={`/docs/${tutorial.meta.slug}/${group.slug}`}
-                        className="block px-3 py-2 border-l border-transparent theme-border-hover theme-text-secondary text-sm"
+                        className={`block px-3 py-2 rounded text-sm ${
+                          activeChapter.slug === group.slug ? 'theme-text-primary' : 'theme-text-secondary'
+                        }`}
+                        style={activeChapter.slug === group.slug ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
                       >
                         <div className="flex items-start gap-2">
                           <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-0.5">00</span>
