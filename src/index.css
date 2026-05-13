@@ -532,6 +532,9 @@ html.dark .theme-button-toggle-idle:hover {
   font-size: 0.875rem;
   line-height: 1.7;
   overflow-x: auto;
+  /* Collapse the `\n` text nodes Shiki emits between `.line` spans;
+     `.line` re-enables `pre` whitespace for indentation. */
+  white-space: normal;
   /* Override Shiki theme background to use theme-adaptive colors */
   background: transparent !important;
   color: #24292e !important;
@@ -561,6 +564,8 @@ html.dark .code-block-bg {
 
 .shiki .line {
   display: block;
+  white-space: pre;
+  min-height: 1lh;
 }
 
 /* Ensure Shiki themes don't clash with Tailwind pre resets */
