@@ -299,7 +299,7 @@ export default function DocsTutorial() {
               </motion.header>
 
               <div className="theme-border border-l pl-4">
-                <div className="px-2 py-3">
+                <div className="px-2 py-2">
                   <h2 className="theme-text-muted font-mono text-[10px] uppercase tracking-[0.3em] font-bold">
                     Chapter Directory
                   </h2>
@@ -318,18 +318,18 @@ export default function DocsTutorial() {
                         <Link
                           key={chapter.slug}
                           to={`/docs/${tutorial.meta.slug}/${chapter.slug}`}
-                          className={`block px-3 py-3 rounded transition-colors ${
+                          className={`block px-3 py-2 rounded transition-colors ${
                             isActive
                               ? 'theme-text-primary'
                               : 'theme-text-secondary'
                           }`}
                           style={isActive ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
                         >
-                          <div className="flex items-start gap-3">
-                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
+                          <div className="flex items-start gap-2">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-0.5">
                               {String(chapter.sidebarPosition).padStart(2, '0')}
                             </span>
-                            <div className="font-bold leading-tight">{chapter.title}</div>
+                            <div className="font-bold leading-tight text-sm">{chapter.title}</div>
                           </div>
                         </Link>
                       )
@@ -424,15 +424,15 @@ function GroupedSidebar({
         to={chapter.groupSlug
           ? `/docs/${tutorial.meta.slug}/${chapter.groupSlug}/${chapter.slug}`
           : `/docs/${tutorial.meta.slug}/${chapter.slug}`}
-        className={`block px-3 py-3 rounded transition-colors ${
+        className={`block px-3 py-2 rounded transition-colors ${
           isActive
             ? 'theme-text-primary'
             : 'theme-text-secondary'
         } ${isNested ? 'text-sm' : ''}`}
         style={isActive ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
       >
-        <div className="flex items-start gap-3">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-1">
+        <div className="flex items-start gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-50 pt-0.5">
             {String(chapter.sidebarPosition).padStart(2, '0')}
           </span>
           <div className="font-bold leading-tight">{chapter.title}</div>
@@ -452,11 +452,11 @@ function GroupedSidebar({
         const isGroupActive = activeChapter.slug === group.slug
 
         return (
-          <div key={group.slug} className="mt-2">
+          <div key={group.slug} className="mt-1">
             <button
               type="button"
               onClick={() => handleGroupClick(group)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded transition-colors cursor-pointer theme-surface-hover ${
+              className={`w-full flex items-center justify-between px-3 py-1.5 rounded transition-colors cursor-pointer theme-surface-hover ${
                 isGroupActive ? 'theme-text-primary' : 'theme-text-secondary'
               }`}
               style={isGroupActive ? { backgroundColor: 'var(--color-surface-hover)' } : undefined}
@@ -482,7 +482,7 @@ function GroupedSidebar({
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  <div className="pl-4">
+                  <div className="pl-3">
                     {group.chapters.map((chapter) => renderChapterLink(chapter, true))}
                   </div>
                 </motion.div>
